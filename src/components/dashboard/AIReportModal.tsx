@@ -821,13 +821,16 @@ function DetailedSections({ markdown }: { markdown: string }) {
       );
     },
     td: ({ children, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) => {
-      const text = extractCellText(children).trim();
+      const rawText = extractCellText(children);
+      // ⚠ U+3000(전각공백)이 trim()에 의해 제거되므로, indented 감지는 raw 기준
+      const isIndented = rawText.startsWith("　");
+      const text = rawText.trim();
       const isPlain = isPlainTextChildren(children);
-      const isIndented = text.startsWith("　");
-      const yoyColor = getYoyColor(text);
+      const cleanText = text;
+      const yoyColor = getYoyColor(cleanText);
       // 숫자/율 전용 셀
-      if (yoyColor || /^[-]$/.test(text) || /^[\d,.\-+%]+$/.test(text)) {
-        const cls = isIndented ? "pl-5" : "";
+      if (yoyColor || /^[-]$/.test(cleanText) || /^[\d,.\-+%]+$/.test(cleanText)) {
+        const cls = isIndented ? "text-slate-500" : "";
         return (
           <td className={cls} style={yoyColor ? { color: yoyColor, fontWeight: 600 } : undefined} {...props}>
             {children}
@@ -835,21 +838,32 @@ function DetailedSections({ markdown }: { markdown: string }) {
         );
       }
       // 판정/분석 셀 (plain text only)
-      if (isPlain && (/^(🔴|🟡|🟢|정상|개선|악화|시즌|Red pack)/.test(text) || text.includes(" — "))) {
+      if (isPlain && (/^(🔴|🟡|🟢|정상|개선|악화|시즌|Red pack)/.test(cleanText) || cleanText.includes(" — "))) {
         return (
-          <td {...props}>
-            <StructuredJudgeCell text={text} />
+          <td className={isIndented ? "text-slate-500" : ""} {...props}>
+            <StructuredJudgeCell text={cleanText} />
           </td>
         );
       }
-      // 일반 텍스트 — plain이면 하이라이트, 리치 콘텐츠(굵은글씨 등)면 그대로
-      let cls = isIndented ? "pl-5" : "";
-      if (/개선/.test(text)) cls += " text-emerald-700 font-semibold";
-      else if (/악화|경고/.test(text)) cls += " text-rose-700 font-semibold";
-      else if (/주의/.test(text)) cls += " text-amber-700 font-semibold";
+      // 첫 컬럼 라벨 (들여쓰기 적용)
+      if (isIndented) {
+        return (
+          <td className="text-slate-600 pl-7" {...props}>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="text-slate-300 text-[11px]">└</span>
+              <span>{cleanText}</span>
+            </span>
+          </td>
+        );
+      }
+      // 일반 텍스트
+      let cls = "";
+      if (/개선/.test(cleanText)) cls += " text-emerald-700 font-semibold";
+      else if (/악화|경고/.test(cleanText)) cls += " text-rose-700 font-semibold";
+      else if (/주의/.test(cleanText)) cls += " text-amber-700 font-semibold";
       return (
         <td className={cls.trim()} {...props}>
-          {isPlain ? highlightInsight(text) : children}
+          {isPlain ? highlightInsight(cleanText) : children}
         </td>
       );
     },
@@ -1328,11 +1342,15 @@ ${inner}
                 .rpt-tbl td:first-child, .rpt-detail-tbl td:first-child { border-left: 1px solid #EEF2F6; }
                 .rpt-tbl tbody tr:hover td, .rpt-detail-tbl tbody tr:hover td { background: #FAFBFD; }
                 .rpt-tbl tr.brand-header td, .rpt-detail-tbl tr.brand-header td {
-                  padding: 5px 10px;
-                  background: #F1F5F9;
-                  font-weight: 600;
+                  padding: 6px 10px;
+                  background: #E2E8F0;
+                  font-weight: 700;
                   font-size: 13px;
                   color: #1E3A5F;
+                }
+                .rpt-detail-tbl tr.brand-header td:first-child {
+                  border-left: 3px solid #6366F1;
+                  padding-left: 8px;
                 }
 
                 /* ── Risk/YOY 등 단순 표 ── */
