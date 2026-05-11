@@ -163,6 +163,26 @@ const SALARY_GUIDELINE_MAX = 110;
 // 시점차 항목 (RISK_TABLE 자동 분류 시 제외하거나 "—" 판정)
 const SEASONAL_ITEMS = new Set(["수주회", "Red pack", "세금과공과"]);
 
+// 비용률 공식: 비용 × 1.13 / 리테일 매출 (매출 부가세 포함, 비용 미포함 → 가산)
+const VAT_FACTOR = 1.13;
+function calcCostRatio(cost, sales) {
+  if (!sales || sales <= 0) return 0;
+  return (cost * VAT_FACTOR / sales) * 100;
+}
+
+// 비용 분류
+const COST_CLASS = {
+  고정비: ["인건비", "임차료", "감가상각비"],
+  준고정비: ["복리후생비", "IT수수료", "기타", "차량렌트비"],
+  변동비: ["광고비", "수주회", "출장비", "지급수수료", "세금과공과"],
+};
+function classifyCost(lv1) {
+  for (const [cls, items] of Object.entries(COST_CLASS)) {
+    if (items.includes(lv1)) return cls;
+  }
+  return "기타";
+}
+
 // ────────────────────────────────────────────────
 // 데이터 빌드
 // ────────────────────────────────────────────────
@@ -276,10 +296,11 @@ function buildKpi() {
   const cM = corpM.current.cost, cMP = corpM.previous?.cost ?? null;
   const cY = corpY.current.cost, cYP = corpY.previous?.cost ?? null;
 
-  const ratioM = sM > 0 ? (cM / sM) * 100 : 0;
-  const ratioMP = sMP > 0 ? (cMP / sMP) * 100 : 0;
-  const ratioY = sY > 0 ? (cY / sY) * 100 : 0;
-  const ratioYP = sYP > 0 ? (cYP / sYP) * 100 : 0;
+  // 비용률 = 비용 × 1.13 / 리테일 매출 (매출 부가세 포함, 비용 미포함)
+  const ratioM = calcCostRatio(cM, sM);
+  const ratioMP = calcCostRatio(cMP, sMP);
+  const ratioY = calcCostRatio(cY, sY);
+  const ratioYP = calcCostRatio(cYP, sYP);
   const verdict = ratioY < ratioYP ? "개선(YTD 기준)" : ratioY > ratioYP ? "악화(YTD 기준)" : "전년 동등";
 
   const hc = corpY.current.headcount;
@@ -436,8 +457,8 @@ function buildYoyTable() {
   // 법인 총비용
   const cost = corpY.current.cost, prevCost = corpY.previous?.cost ?? 0;
   const costYoy = yoyNum(cost, prevCost);
-  const costRatio = sales > 0 ? (cost / sales) * 100 : 0;
-  const prevCostRatio = prevSales > 0 ? (prevCost / prevSales) * 100 : 0;
+  const costRatio = calcCostRatio(cost, sales);
+  const prevCostRatio = calcCostRatio(prevCost, prevSales);
   const salesYoy = yoyNum(sales, prevSales);
   const costJudge = costYoy != null && salesYoy != null && costYoy <= salesYoy
     ? "🟡 비용 증가율 매출 증가율 하회, 비용률 개선. 정상"
@@ -452,8 +473,8 @@ function buildYoyTable() {
     const cur = corpY.currCats[it] ?? 0;
     const prv = corpY.prevCats[it] ?? 0;
     const yoy = yoyNum(cur, prv);
-    const ratio = sales > 0 ? (cur / sales) * 100 : 0;
-    const prvRatio = prevSales > 0 ? (prv / prevSales) * 100 : 0;
+    const ratio = calcCostRatio(cur, sales);
+    const prvRatio = calcCostRatio(prv, prevSales);
     let judge;
     if (it === "수주회") {
       judge = "시즌 선집행 정상 패턴 — YTD 누적 패턴은 분기별 점검";
@@ -492,8 +513,8 @@ function buildYoyTable() {
     if (yoy != null && (yoy < 80 || yoy > 130)) {
       const sBr = bd.current.sales;
       const sBrPrev = bd.previous?.sales ?? 0;
-      const ratio = sBr > 0 ? (c / sBr) * 100 : 0;
-      const prvRatio = sBrPrev > 0 ? (p / sBrPrev) * 100 : 0;
+      const ratio = calcCostRatio(c, sBr);
+      const prvRatio = calcCostRatio(p, sBrPrev);
       const yr = Math.round(yoy);
       const rpT = isRedPackTimingDiff(bdRaw);
       const judge = rpT && yr < SALARY_GUIDELINE_MIN
@@ -578,10 +599,10 @@ function buildBullets() {
   // 1) 매출/비용/비용률
   const salesY = corpY.current.sales, salesYP = corpY.previous?.sales ?? 0;
   const costY = corpY.current.cost, costYP = corpY.previous?.cost ?? 0;
-  const ratioY = salesY > 0 ? (costY / salesY) * 100 : 0;
-  const ratioYP = salesYP > 0 ? (costYP / salesYP) * 100 : 0;
-  const ratioM = corpM.current.sales > 0 ? (corpM.current.cost / corpM.current.sales) * 100 : 0;
-  const ratioMP = corpM.previous && corpM.previous.sales > 0 ? (corpM.previous.cost / corpM.previous.sales) * 100 : 0;
+  const ratioY = calcCostRatio(costY, salesY);
+  const ratioYP = calcCostRatio(costYP, salesYP);
+  const ratioM = calcCostRatio(corpM.current.cost, corpM.current.sales);
+  const ratioMP = calcCostRatio(corpM.previous?.cost ?? 0, corpM.previous?.sales ?? 0);
   const direction = ratioY < ratioYP ? "개선" : "악화";
   bullets.push(`• 법인 YTD 총비용 ${fmtK(costY)}K (YOY ${Math.round(yoyNum(costY, costYP) ?? 0)}%), 매출 ${fmtK(salesY)}K (YOY ${Math.round(yoyNum(salesY, salesYP) ?? 0)}%) — 비용 증가율이 매출 증가율을 ${(yoyNum(costY, costYP) ?? 0) <= (yoyNum(salesY, salesYP) ?? 0) ? "하회" : "상회"}하여 비용률 ${direction}(YTD ${ratioYP.toFixed(2)}% → ${ratioY.toFixed(2)}%, 당월 ${ratioMP.toFixed(2)}% → ${ratioM.toFixed(2)}%)`);
 
@@ -793,10 +814,10 @@ function buildAdAnalysis() {
     if (br !== "법인" && br !== "공통") {
       const sM = m.current.sales, sMP = m.previous?.sales ?? 0;
       const sY = y.current.sales, sYP = y.previous?.sales ?? 0;
-      const rM = sM > 0 ? (adM / sM) * 100 : 0;
-      const rMP = sMP > 0 ? (adMP / sMP) * 100 : 0;
-      const rY = sY > 0 ? (adY / sY) * 100 : 0;
-      const rYP = sYP > 0 ? (adYP / sYP) * 100 : 0;
+      const rM = calcCostRatio(adM, sM);
+      const rMP = calcCostRatio(adMP, sMP);
+      const rY = calcCostRatio(adY, sY);
+      const rYP = calcCostRatio(adYP, sYP);
       lines.push(`| 　광고비/매출비율 | ${rMP.toFixed(2)}% | ${rM.toFixed(2)}% | — | ${rYP.toFixed(2)}% | ${rY.toFixed(2)}% | — | — | — | — | — | 광고비율 ${rY > rYP ? "악화" : "유지/개선"} |`);
     }
   }
@@ -867,12 +888,12 @@ function buildEfficiency() {
     const cAnn = bd.annualPlan.total?.cost ?? null;
     const sPlan = bd.ytdPlan.total?.sales ?? null;
     const cPlan = bd.ytdPlan.total?.cost ?? null;
-    const ratioM = sM > 0 ? (cM / sM) * 100 : 0;
-    const ratioMP = sMP > 0 ? (cMP / sMP) * 100 : 0;
-    const ratioY = sY > 0 ? (cY / sY) * 100 : 0;
-    const ratioYP = sYP > 0 ? (cYP / sYP) * 100 : 0;
-    const ratioPlan = sPlan && sPlan > 0 ? (cPlan / sPlan) * 100 : 0;
-    const ratioAnn = sAnn && sAnn > 0 ? (cAnn / sAnn) * 100 : 0;
+    const ratioM = calcCostRatio(cM, sM);
+    const ratioMP = calcCostRatio(cMP, sMP);
+    const ratioY = calcCostRatio(cY, sY);
+    const ratioYP = calcCostRatio(cYP, sYP);
+    const ratioPlan = calcCostRatio(cPlan ?? 0, sPlan ?? 0);
+    const ratioAnn = calcCostRatio(cAnn ?? 0, sAnn ?? 0);
     const verdict = (() => {
       if (br === "DISCOVERY" && ratioY > 50) return `🔴 — 비용률 ${ratioY.toFixed(1)}%, 적자 구조`;
       return ratioY < ratioYP ? "정상 — YTD 비용률 개선" : ratioY > ratioYP + 0.5 ? "🟡 — YTD 비용률 악화" : "정상";
@@ -939,8 +960,8 @@ function buildBrandSummary() {
     const bd = brandData[br].ytd;
     const sales = bd.current.sales, salesPrev = bd.previous?.sales ?? 0;
     const cost = bd.current.cost, costPrev = bd.previous?.cost ?? 0;
-    const ratio = sales > 0 ? (cost / sales) * 100 : 0;
-    const ratioPrev = salesPrev > 0 ? (costPrev / salesPrev) * 100 : 0;
+    const ratio = calcCostRatio(cost, sales);
+    const ratioPrev = calcCostRatio(costPrev, salesPrev);
     const hc = bd.current.headcount, hcAvg = bd.current.headcountAvg;
     const perCapSales = bd.current.headcountSum > 0 ? sales / bd.current.headcountSum : null;
     const verdict = (() => {
@@ -986,7 +1007,7 @@ function buildOperationGuide() {
 
   // B. DISCOVERY BEP
   const dis = brandData["DISCOVERY"].ytd;
-  const disRatio = dis.current.sales > 0 ? (dis.current.cost / dis.current.sales) * 100 : 0;
+  const disRatio = calcCostRatio(dis.current.cost, dis.current.sales);
   const disAd = dis.currCats["광고비"] ?? 0;
   const disAdAnn = brandData["DISCOVERY"].annualPlan.cats["광고비"] ?? 0;
   const disAdUsage = disAdAnn > 0 ? (disAd / disAdAnn) * 100 : 0;
@@ -1073,6 +1094,209 @@ function buildDetailed() {
 }
 
 // ────────────────────────────────────────────────
+// ② 브랜드별 비용 효율 종합 스코어 (A/B/C/D)
+// ────────────────────────────────────────────────
+function calcScore(brand) {
+  const bd = brandData[brand];
+  const y = bd.ytd;
+  const m = bd.monthly;
+  const sales = y.current.sales;
+  const salesPrev = y.previous?.sales ?? 0;
+  const cost = y.current.cost;
+  const costPrev = y.previous?.cost ?? 0;
+  const ratio = calcCostRatio(cost, sales);
+  const ratioPrev = calcCostRatio(costPrev, salesPrev);
+  const yoyDelta = ratio - ratioPrev; // %p
+
+  // 1) 추세 (35점) — YoY 비용률 변화
+  let trendScore = 15;
+  if (yoyDelta < -3) trendScore = 35;
+  else if (yoyDelta < -1) trendScore = 28;
+  else if (yoyDelta < 0) trendScore = 22;
+  else if (yoyDelta < 1) trendScore = 15;
+  else if (yoyDelta < 3) trendScore = 8;
+  else trendScore = 0;
+
+  // 2) 수준 (30점) — MLB 기준 대비
+  let levelScore = 30;
+  let levelNote = "MLB 기준 브랜드";
+  if (brand === "공통") {
+    levelScore = 22;
+    levelNote = "지원조직 (참고값)";
+  } else if (brand !== "MLB") {
+    const mlbRatio = calcCostRatio(brandData["MLB"].ytd.current.cost, brandData["MLB"].ytd.current.sales);
+    const diff = ratio - mlbRatio;
+    if (diff <= -1) { levelScore = 30; levelNote = `MLB 대비 ${diff.toFixed(1)}%p (낮음)`; }
+    else if (diff <= 1) { levelScore = 25; levelNote = `MLB 대비 ${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%p`; }
+    else if (diff <= 3) { levelScore = 15; levelNote = `MLB 대비 +${diff.toFixed(1)}%p`; }
+    else { levelScore = 5; levelNote = `MLB 대비 +${diff.toFixed(1)}%p (높음)`; }
+  }
+
+  // 3) 광고비율 (20점) — 광고비/매출
+  const adAmt = y.currCats["광고비"] ?? 0;
+  const adRatio = calcCostRatio(adAmt, sales);
+  const adPrev = y.prevCats["광고비"] ?? 0;
+  const adRatioPrev = calcCostRatio(adPrev, salesPrev);
+  let adScore = 10;
+  let adNote = `${adRatio.toFixed(1)}% (전년 ${adRatioPrev.toFixed(1)}%)`;
+  if (brand === "공통") { adScore = 15; adNote = "지원조직"; }
+  else if (adRatio < 2) adScore = 20;
+  else if (adRatio < 3) adScore = 15;
+  else if (adRatio < 5) adScore = 10;
+  else if (adRatio < 8) adScore = 5;
+  else adScore = 0;
+
+  // 4) 계획 집행 효율 (15점) — YTD 계획비 정상 범위
+  const plan = bd.ytdPlan.total?.cost ?? 0;
+  const planRatio = plan > 0 ? (cost / plan) * 100 : null;
+  let planScore = 0;
+  let planNote = "계획 데이터 없음";
+  if (planRatio != null) {
+    if (planRatio >= 90 && planRatio <= 110) { planScore = 15; planNote = `계획비 ${Math.round(planRatio)}% (정상)`; }
+    else if ((planRatio >= 80 && planRatio < 90) || (planRatio > 110 && planRatio <= 120)) { planScore = 10; planNote = `계획비 ${Math.round(planRatio)}% (경계)`; }
+    else { planScore = 3; planNote = `계획비 ${Math.round(planRatio)}% (이탈)`; }
+  }
+
+  const total = trendScore + levelScore + adScore + planScore;
+  let grade;
+  if (total >= 75) grade = "A";
+  else if (total >= 55) grade = "B";
+  else if (total >= 35) grade = "C";
+  else grade = "D";
+
+  return {
+    brand, ratio, yoyDelta, total, grade,
+    trend: { score: trendScore, note: `YoY ${yoyDelta >= 0 ? "+" : ""}${yoyDelta.toFixed(2)}%p` },
+    level: { score: levelScore, note: levelNote },
+    ad: { score: adScore, note: adNote, ratio: adRatio, yoy: adRatio - adRatioPrev },
+    plan: { score: planScore, note: planNote, planRatio },
+  };
+}
+
+function buildScoreCards() {
+  const lines = [];
+  // 라인 포맷: brand|grade|total|ratio|yoyDelta|trendScore|trendNote|levelScore|levelNote|adScore|adNote|planScore|planNote
+  for (const br of BRANDS_WITH_CORP) {
+    const s = calcScore(br);
+    lines.push([
+      br === "법인" ? "법인전체" : br,
+      s.grade, s.total, s.ratio.toFixed(2), `${s.yoyDelta >= 0 ? "+" : ""}${s.yoyDelta.toFixed(2)}%p`,
+      s.trend.score, s.trend.note,
+      s.level.score, s.level.note,
+      s.ad.score, s.ad.note,
+      s.plan.score, s.plan.note,
+    ].join("|"));
+  }
+  return sec("SCORE_CARDS", lines.join("\n"));
+}
+
+// ────────────────────────────────────────────────
+// ③ 브랜드별 체크포인트 — 액션 카드
+// ────────────────────────────────────────────────
+function buildCheckpoints() {
+  const lines = [];
+  // 포맷: BRAND_HEADER|brand|grade
+  //       ITEM|brand|severity|category|prevRatio→currRatio|delta|amount|note
+  for (const br of BRANDS_WITH_CORP) {
+    const bd = brandData[br];
+    const sales = bd.ytd.current.sales;
+    const salesPrev = bd.ytd.previous?.sales ?? 0;
+    const s = calcScore(br);
+    lines.push(`BRAND_HEADER|${br === "법인" ? "법인전체" : br}|${s.grade}`);
+
+    const items = [];
+    const cats = Object.keys(bd.ytd.currCats);
+    for (const cat of cats) {
+      const cur = bd.ytd.currCats[cat] ?? 0;
+      const prv = bd.ytd.prevCats[cat] ?? 0;
+      const r = calcCostRatio(cur, sales);
+      const rp = calcCostRatio(prv, salesPrev);
+      const delta = r - rp;
+      const isSeasonal = SEASONAL_ITEMS.has(cat);
+      // Red pack 시점차로 인한 인건비 변동은 제외
+      const isLaborTiming = cat === "인건비" && isRedPackTimingDiff(bd) && delta < 0;
+      if (isSeasonal || isLaborTiming) continue;
+      if (Math.abs(delta) < 0.3) continue; // 미미한 변동 제외
+
+      let severity, note;
+      if (delta >= 3) {
+        severity = "🔴 즉시"; note = "급증 원인 규명 및 절감 계획 수립 필요";
+      } else if (delta >= 1) {
+        severity = "🟡 모니터링"; note = "추세 지속 여부 모니터링 필요";
+      } else if (delta <= -1) {
+        severity = "✅ 개선"; note = "효율화 달성 — 지속 유지 확인 권고";
+      } else continue;
+
+      items.push({ cat, severity, prev: rp, curr: r, delta, amount: cur, note });
+    }
+    // 큰 변동 순으로 정렬, 상위 3개
+    items.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    for (const it of items.slice(0, 3)) {
+      lines.push([
+        "ITEM", br === "법인" ? "법인전체" : br, it.severity, it.cat,
+        `${it.prev.toFixed(2)}%→${it.curr.toFixed(2)}%`,
+        `${it.delta >= 0 ? "+" : ""}${it.delta.toFixed(2)}%p`,
+        `${fmtK(it.amount)}K`, it.note,
+      ].join("|"));
+    }
+    // MLB 대비 구조 차이 (브랜드만, 법인/공통 제외)
+    if (br !== "법인" && br !== "공통" && br !== "MLB") {
+      const mlbRatio = calcCostRatio(brandData["MLB"].ytd.current.cost, brandData["MLB"].ytd.current.sales);
+      const brRatio = calcCostRatio(bd.ytd.current.cost, sales);
+      const structDiff = brRatio - mlbRatio;
+      if (Math.abs(structDiff) >= 2) {
+        lines.push([
+          "ITEM", br, "📌 구조", "총비용률",
+          `MLB ${mlbRatio.toFixed(1)}% vs ${br} ${brRatio.toFixed(1)}%`,
+          `${structDiff >= 0 ? "+" : ""}${structDiff.toFixed(1)}%p`,
+          "—", structDiff > 0 ? "구조적 비효율 가능성 점검" : "비용 효율 우수",
+        ].join("|"));
+      }
+    }
+  }
+  return sec("CHECKPOINTS", lines.join("\n"));
+}
+
+// ────────────────────────────────────────────────
+// ⑦ 고정/변동/준고정 비용 구조 분석 (브랜드별)
+// ────────────────────────────────────────────────
+function buildFixedVarAnalysis() {
+  const lines = [];
+  // 헤더: classification|brand|category|amount|prev|yoy|share|note
+  lines.push("BY_BRAND_HEADER");
+  for (const br of BRANDS_WITH_CORP) {
+    const bd = brandData[br];
+    const cats = bd.ytd.currCats;
+    const prevCats = bd.ytd.prevCats;
+    const totals = { 고정비: 0, 준고정비: 0, 변동비: 0 };
+    const prevTotals = { 고정비: 0, 준고정비: 0, 변동비: 0 };
+    for (const lv1 of Object.keys(cats)) {
+      const cls = classifyCost(lv1);
+      if (cls in totals) {
+        totals[cls] += cats[lv1] ?? 0;
+        prevTotals[cls] += prevCats[lv1] ?? 0;
+      }
+    }
+    const total = totals.고정비 + totals.준고정비 + totals.변동비;
+    for (const cls of ["고정비", "준고정비", "변동비"]) {
+      const cur = totals[cls];
+      const prv = prevTotals[cls];
+      const share = total > 0 ? (cur / total) * 100 : 0;
+      const yoy = yoyNum(cur, prv);
+      lines.push([
+        br === "법인" ? "법인전체" : br,
+        cls,
+        `${fmtK(cur)}K`,
+        `${fmtK(prv)}K`,
+        yoy != null ? `${Math.round(yoy)}%` : "-",
+        `${share.toFixed(1)}%`,
+      ].join("|"));
+    }
+  }
+  return sec("FIXED_VAR", lines.join("\n"));
+}
+
+// ────────────────────────────────────────────────
 // 조립
 // ────────────────────────────────────────────────
 const cs = buildCostStructure();
@@ -1080,9 +1304,12 @@ const out = [
   buildMeta(),
   buildBullets(),
   buildKpi(),
+  buildScoreCards(),
+  buildCheckpoints(),
   buildRiskTable(),
   buildYoyTable(),
   cs.text,
+  buildFixedVarAnalysis(),
   buildCostInsight(cs),
   buildKeyInsight(),
   buildDetailed(),

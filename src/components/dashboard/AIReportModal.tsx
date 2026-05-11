@@ -32,10 +32,47 @@ interface CostRow {
   yoy: string;
 }
 
+interface ScoreCard {
+  brand: string;
+  grade: string;       // A/B/C/D
+  total: number;       // 0-100
+  ratio: number;       // 비용률 %
+  yoyDelta: string;    // "+0.40%p"
+  trend: { score: number; note: string };
+  level: { score: number; note: string };
+  ad: { score: number; note: string };
+  plan: { score: number; note: string };
+}
+interface CheckpointItem {
+  brand: string;
+  severity: string;    // "🔴 즉시" / "🟡 모니터링" / "✅ 개선" / "📌 구조"
+  category: string;
+  change: string;      // "0.00%→0.65%" or "MLB 3.6% vs MLB 3.6%"
+  delta: string;       // "+0.65%p"
+  amount: string;      // "5,000K" or "-"
+  note: string;
+}
+interface CheckpointGroup {
+  brand: string;
+  grade: string;
+  items: CheckpointItem[];
+}
+interface FixedVarRow {
+  brand: string;
+  classification: string;  // 고정비/준고정비/변동비
+  amount: string;
+  prev: string;
+  yoy: string;
+  share: string;
+}
+
 interface ParsedReport {
   meta: { year: string; yearType: string; title: string } | null;
   bullets: string[];
   kpi: KpiItem[];
+  scoreCards: ScoreCard[];
+  checkpoints: CheckpointGroup[];
+  fixedVar: FixedVarRow[];
   brandTable: string;
   riskTable: string;
   yoyTable: string;
@@ -103,11 +140,70 @@ function parseCostRows(s: string): CostRow[] {
     .filter((row) => COST_ROW_TYPES.includes(row.type));
 }
 
+function parseScoreCards(s: string): ScoreCard[] {
+  return s.split("\n").filter(Boolean).map((line) => {
+    const p = line.split("|").map((x) => x.trim());
+    return {
+      brand: p[0] || "",
+      grade: p[1] || "C",
+      total: Number(p[2]) || 0,
+      ratio: Number(p[3]) || 0,
+      yoyDelta: p[4] || "+0.00%p",
+      trend: { score: Number(p[5]) || 0, note: p[6] || "" },
+      level: { score: Number(p[7]) || 0, note: p[8] || "" },
+      ad: { score: Number(p[9]) || 0, note: p[10] || "" },
+      plan: { score: Number(p[11]) || 0, note: p[12] || "" },
+    };
+  });
+}
+
+function parseCheckpoints(s: string): CheckpointGroup[] {
+  const groups: CheckpointGroup[] = [];
+  let current: CheckpointGroup | null = null;
+  for (const line of s.split("\n").filter(Boolean)) {
+    const p = line.split("|").map((x) => x.trim());
+    if (p[0] === "BRAND_HEADER") {
+      current = { brand: p[1] || "", grade: p[2] || "", items: [] };
+      groups.push(current);
+    } else if (p[0] === "ITEM" && current) {
+      current.items.push({
+        brand: p[1] || "",
+        severity: p[2] || "",
+        category: p[3] || "",
+        change: p[4] || "",
+        delta: p[5] || "",
+        amount: p[6] || "-",
+        note: p[7] || "",
+      });
+    }
+  }
+  return groups;
+}
+
+function parseFixedVar(s: string): FixedVarRow[] {
+  return s.split("\n")
+    .filter((l) => l.trim() && !l.startsWith("BY_BRAND_HEADER"))
+    .map((line) => {
+      const p = line.split("|").map((x) => x.trim());
+      return {
+        brand: p[0] || "",
+        classification: p[1] || "",
+        amount: p[2] || "-",
+        prev: p[3] || "-",
+        yoy: p[4] || "-",
+        share: p[5] || "-",
+      };
+    });
+}
+
 function parseReport(text: string): ParsedReport {
   return {
     meta: parseMeta(getSection(text, "META")),
     bullets: parseBullets(getSection(text, "BULLETS")),
     kpi: parseKpi(getSection(text, "KPI")),
+    scoreCards: parseScoreCards(getSection(text, "SCORE_CARDS")),
+    checkpoints: parseCheckpoints(getSection(text, "CHECKPOINTS")),
+    fixedVar: parseFixedVar(getSection(text, "FIXED_VAR")),
     brandTable: getSection(text, "BRAND_TABLE"),
     riskTable: getSection(text, "RISK_TABLE"),
     yoyTable: getSection(text, "YOY_TABLE"),
@@ -713,6 +809,193 @@ function CostStructureSection({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ② 브랜드별 비용 효율 종합 스코어 카드
+function ScoreCardsGrid({ scoreCards }: { scoreCards: ScoreCard[] }) {
+  if (scoreCards.length === 0) return null;
+  const GRADE_STYLE: Record<string, { border: string; bg: string; text: string; label: string }> = {
+    A: { border: "border-emerald-300", bg: "bg-emerald-50", text: "text-emerald-700", label: "우수" },
+    B: { border: "border-blue-300", bg: "bg-blue-50", text: "text-blue-700", label: "양호" },
+    C: { border: "border-amber-300", bg: "bg-amber-50", text: "text-amber-700", label: "주의" },
+    D: { border: "border-rose-300", bg: "bg-rose-50", text: "text-rose-700", label: "위험" },
+  };
+  const Bar = ({ value, max, color }: { value: number; max: number; color: string }) => (
+    <div className="bg-slate-200 rounded-sm h-1 overflow-hidden">
+      <div className={`h-1 ${color}`} style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
+    </div>
+  );
+  return (
+    <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+        <span className="inline-block w-1 h-4 bg-indigo-500 rounded-sm" />
+        <span className="text-[13px] font-semibold text-slate-800">② 브랜드별 비용 효율 종합 스코어</span>
+      </div>
+      <div className="p-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {scoreCards.map((s) => {
+            const g = GRADE_STYLE[s.grade] ?? GRADE_STYLE.C;
+            const deltaPositive = s.yoyDelta.startsWith("+");
+            return (
+              <div key={s.brand} className={`border-2 ${g.border} ${g.bg} rounded-xl p-3 flex flex-col`}>
+                <div className="text-[12.5px] font-bold text-slate-900">{s.brand}</div>
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <span className={`text-[32px] font-black leading-none ${g.text}`}>{s.grade}</span>
+                  <span className={`text-[11px] font-bold ${g.text}`}>{g.label}</span>
+                </div>
+                <div className="text-[10.5px] text-slate-500 mt-0.5">종합 {s.total}점 / 100점</div>
+                <div className="mt-2 space-y-1.5">
+                  <div>
+                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>추세</span><span className="font-semibold">{s.trend.score}점</span></div>
+                    <Bar value={s.trend.score} max={35} color="bg-emerald-500" />
+                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.trend.note}</div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>수준</span><span className="font-semibold">{s.level.score}점</span></div>
+                    <Bar value={s.level.score} max={30} color="bg-blue-500" />
+                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.level.note}</div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>광고비율</span><span className="font-semibold">{s.ad.score}점</span></div>
+                    <Bar value={s.ad.score} max={20} color="bg-amber-500" />
+                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.ad.note}</div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>계획집행</span><span className="font-semibold">{s.plan.score}점</span></div>
+                    <Bar value={s.plan.score} max={15} color="bg-violet-500" />
+                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.plan.note}</div>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-200 text-[10.5px]">
+                  비용률 <strong className="text-slate-900">{s.ratio.toFixed(2)}%</strong>{" "}
+                  <span className={`font-semibold ${deltaPositive ? "text-rose-600" : "text-emerald-600"}`}>{s.yoyDelta}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 text-[10px] text-slate-400 flex flex-wrap gap-x-3">
+          <span><strong className="text-emerald-700">A(75+)</strong> 우수</span>
+          <span><strong className="text-blue-700">B(55~74)</strong> 양호</span>
+          <span><strong className="text-amber-700">C(35~54)</strong> 주의</span>
+          <span><strong className="text-rose-700">D(~34)</strong> 위험</span>
+          <span className="ml-2">· 추세(35) + 수준(30) + 광고비율(20) + 계획집행(15) = 100</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ③ 브랜드별 체크포인트
+function CheckpointsGrid({ groups }: { groups: CheckpointGroup[] }) {
+  if (groups.length === 0) return null;
+  const SEV_STYLE: Record<string, { border: string; bg: string }> = {
+    "🔴": { border: "border-rose-200", bg: "bg-rose-50" },
+    "🟡": { border: "border-amber-200", bg: "bg-amber-50" },
+    "✅": { border: "border-emerald-200", bg: "bg-emerald-50" },
+    "📌": { border: "border-blue-200", bg: "bg-blue-50" },
+  };
+  return (
+    <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+        <span className="inline-block w-1 h-4 bg-indigo-500 rounded-sm" />
+        <span className="text-[13px] font-semibold text-slate-800">③ 브랜드별 체크포인트 — 지금 바로 확인해야 할 것</span>
+      </div>
+      <div className="p-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
+        {groups.map((g) => (
+          <div key={g.brand} className="border border-slate-200 rounded-xl bg-white p-3">
+            <div className="text-[13px] font-bold text-slate-900 border-b border-slate-200 pb-1.5 mb-2 flex items-center justify-between">
+              <span>{g.brand}</span>
+              <span className="text-[11px] text-slate-400">등급 {g.grade}</span>
+            </div>
+            {g.items.length === 0 ? (
+              <div className="text-[11px] text-slate-400 py-2">특이사항 없음</div>
+            ) : (
+              <div className="space-y-1.5">
+                {g.items.map((it, i) => {
+                  const key = it.severity.charAt(0);
+                  const st = SEV_STYLE[key] ?? SEV_STYLE["📌"];
+                  return (
+                    <div key={i} className={`border ${st.border} ${st.bg} rounded-md p-2`}>
+                      <div className="text-[11.5px] font-semibold text-slate-900 leading-snug">
+                        {it.severity} <span className="font-bold">{it.category}</span>
+                      </div>
+                      <div className="text-[10.5px] text-slate-700 mt-0.5">
+                        {it.change} <span className="font-semibold">{it.delta}</span>
+                        {it.amount !== "-" && <span className="text-slate-500"> · {it.amount}</span>}
+                      </div>
+                      <div className="text-[10.5px] text-slate-500 mt-0.5 leading-snug">{it.note}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 고정/변동/준고정 비용 구조 분석
+function FixedVarTable({ rows }: { rows: FixedVarRow[] }) {
+  if (rows.length === 0) return null;
+  // 브랜드별로 그룹
+  const byBrand: Record<string, FixedVarRow[]> = {};
+  for (const r of rows) {
+    if (!byBrand[r.brand]) byBrand[r.brand] = [];
+    byBrand[r.brand].push(r);
+  }
+  const CLS_COLOR: Record<string, string> = {
+    고정비: "bg-blue-50 text-blue-700",
+    준고정비: "bg-amber-50 text-amber-700",
+    변동비: "bg-emerald-50 text-emerald-700",
+  };
+  return (
+    <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+        <span className="inline-block w-1 h-4 bg-emerald-500 rounded-sm" />
+        <span className="text-[13px] font-semibold text-slate-800">⑦ 브랜드별 비용 구조 (고정 / 준고정 / 변동)</span>
+      </div>
+      <div className="p-4 overflow-x-auto">
+        <table className="w-full text-[12px]" style={{ borderCollapse: "separate", borderSpacing: 0, fontVariantNumeric: "tabular-nums" }}>
+          <thead>
+            <tr className="bg-slate-50 text-slate-600 text-[11px]">
+              <th className="px-3 py-2 text-left border-y border-slate-200">브랜드</th>
+              <th className="px-3 py-2 text-center border-y border-slate-200">분류</th>
+              <th className="px-3 py-2 text-right border-y border-slate-200">당해K</th>
+              <th className="px-3 py-2 text-right border-y border-slate-200">전년K</th>
+              <th className="px-3 py-2 text-right border-y border-slate-200">YoY</th>
+              <th className="px-3 py-2 text-right border-y border-slate-200">구성비</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(byBrand).map(([brand, brandRows]) => (
+              <React.Fragment key={brand}>
+                <tr className="border-b border-slate-100">
+                  <td className="px-3 py-2 font-semibold text-slate-800" rowSpan={brandRows.length}>{brand}</td>
+                  <td className={`px-3 py-2 text-center font-semibold rounded ${CLS_COLOR[brandRows[0].classification] ?? ""}`}>{brandRows[0].classification}</td>
+                  <td className="px-3 py-2 text-right">{brandRows[0].amount}</td>
+                  <td className="px-3 py-2 text-right text-slate-500">{brandRows[0].prev}</td>
+                  <td className="px-3 py-2 text-right font-semibold">{brandRows[0].yoy}</td>
+                  <td className="px-3 py-2 text-right">{brandRows[0].share}</td>
+                </tr>
+                {brandRows.slice(1).map((r, i) => (
+                  <tr key={i} className="border-b border-slate-100">
+                    <td className={`px-3 py-2 text-center font-semibold rounded ${CLS_COLOR[r.classification] ?? ""}`}>{r.classification}</td>
+                    <td className="px-3 py-2 text-right">{r.amount}</td>
+                    <td className="px-3 py-2 text-right text-slate-500">{r.prev}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{r.yoy}</td>
+                    <td className="px-3 py-2 text-right">{r.share}</td>
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1408,6 +1691,12 @@ ${inner}
               {/* 2. KPI Cards */}
               <KpiCards kpi={report.kpi} />
 
+              {/* ② 종합 스코어 */}
+              <ScoreCardsGrid scoreCards={report.scoreCards} />
+
+              {/* ③ 체크포인트 */}
+              <CheckpointsGrid groups={report.checkpoints} />
+
               {/* 3. YOY 풀폭 위, Risk 좌우 분할 아래 (공백 최소화) */}
               {(() => {
                 const [riskLeft, riskRight] = splitRiskTableMarkdown(report.riskTable);
@@ -1431,6 +1720,9 @@ ${inner}
                 rows={report.costRows}
                 insight={report.costInsight}
               />
+
+              {/* ⑦ 고정/변동/준고정 비용 구조 (브랜드별) */}
+              <FixedVarTable rows={report.fixedVar} />
 
               {/* 5. Key Insight */}
               <KeyInsightBar text={report.keyInsight} />
