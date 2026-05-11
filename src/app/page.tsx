@@ -261,9 +261,21 @@ export default function HomePage() {
               <LanguageToggle />
             </div>
           </div>
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-4">
-            {t("브랜드를 클릭하면 상세 대시보드로 이동합니다.", lang)}
-          </p>
+          <div className="mt-4 flex items-center gap-4 flex-wrap">
+            <p className="text-[10px] sm:text-xs text-muted-foreground">
+              {t("브랜드를 클릭하면 상세 대시보드로 이동합니다.", lang)}
+            </p>
+            <p className="text-[10px] sm:text-xs text-slate-400">
+              매월 데이터 갱신(실행순서):
+              <code className="ml-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
+                python scripts/preprocess_sales.py
+              </code>
+              <span className="mx-1.5 text-slate-400">→</span>
+              <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
+                python scripts/preprocess_expense.py
+              </code>
+            </p>
+          </div>
         </div>
 
         {/* HTML 다운로드 대상: 브랜드 카드 (ref는 2026 예산일 때만) */}

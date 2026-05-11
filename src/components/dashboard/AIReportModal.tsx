@@ -32,6 +32,39 @@ interface CostRow {
   yoy: string;
 }
 
+interface TopSummary {
+  overall?: { delta: string; verdict: string; mainDriverCls: string; mainDriverDelta: string; worstBrand: string; worstDelta: string };
+  notableWorst?: { brand: string; ratio: string; prev: string; delta: string };
+  notableBest?: { brand: string; ratio: string; prev: string; delta: string };
+  top3: { rank: number; brand: string; category: string; delta: string; amount: string }[];
+}
+interface BrandOverviewRow {
+  brand: string;
+  sales: string;
+  ratio: string;
+  prevRatio: string;
+  delta: string;
+  labRatio: string;
+  adRatio: string;
+  maxItem: string;
+  signal: string;
+}
+interface ChangeDriverItem {
+  brand: string;
+  category: string;
+  change: string;   // "0.00%→0.65%"
+  delta: string;    // "+0.65%p"
+  amount: string;
+  action?: string;  // 카테고리 기반 액션 권고
+}
+interface ChangeDriverBrand {
+  brand: string;
+  verdict: string; // 악화/개선/유지
+  ratio: string;
+  delta: string;
+  up: ChangeDriverItem[];
+  down: ChangeDriverItem[];
+}
 interface ScoreCard {
   brand: string;
   grade: string;       // A/B/C/D
@@ -64,14 +97,20 @@ interface FixedVarRow {
   prev: string;
   yoy: string;
   share: string;
+  characteristics?: string;  // 구조 특성 (첫 행에만)
+  trend?: string;            // 변동 추이 (첫 행에만)
+  action?: string;           // 액션 (첫 행에만)
 }
 
 interface ParsedReport {
   meta: { year: string; yearType: string; title: string } | null;
   bullets: string[];
   kpi: KpiItem[];
+  topSummary: TopSummary;
   scoreCards: ScoreCard[];
   checkpoints: CheckpointGroup[];
+  brandOverview: BrandOverviewRow[];
+  changeDrivers: ChangeDriverBrand[];
   fixedVar: FixedVarRow[];
   brandTable: string;
   riskTable: string;
@@ -140,6 +179,51 @@ function parseCostRows(s: string): CostRow[] {
     .filter((row) => COST_ROW_TYPES.includes(row.type));
 }
 
+function parseTopSummary(s: string): TopSummary {
+  const result: TopSummary = { top3: [] };
+  for (const line of s.split("\n").filter(Boolean)) {
+    const p = line.split("|").map((x) => x.trim());
+    if (p[0] === "OVERALL") {
+      result.overall = { delta: p[1], verdict: p[2], mainDriverCls: p[3], mainDriverDelta: p[4], worstBrand: p[5], worstDelta: p[6] };
+    } else if (p[0] === "NOTABLE_WORST") {
+      result.notableWorst = { brand: p[1], ratio: p[2], prev: p[3], delta: p[4] };
+    } else if (p[0] === "NOTABLE_BEST") {
+      result.notableBest = { brand: p[1], ratio: p[2], prev: p[3], delta: p[4] };
+    } else if (/^TOP\d+$/.test(p[0])) {
+      result.top3.push({ rank: parseInt(p[0].slice(3), 10), brand: p[1], category: p[2], delta: p[3], amount: p[4] });
+    }
+  }
+  return result;
+}
+
+function parseBrandOverview(s: string): BrandOverviewRow[] {
+  return s.split("\n").filter(Boolean).map((line) => {
+    const p = line.split("|").map((x) => x.trim());
+    return {
+      brand: p[0] || "", sales: p[1] || "-", ratio: p[2] || "-", prevRatio: p[3] || "-",
+      delta: p[4] || "-", labRatio: p[5] || "-", adRatio: p[6] || "-",
+      maxItem: p[7] || "-", signal: p[8] || "",
+    };
+  });
+}
+
+function parseChangeDrivers(s: string): ChangeDriverBrand[] {
+  const groups: ChangeDriverBrand[] = [];
+  let current: ChangeDriverBrand | null = null;
+  for (const line of s.split("\n").filter(Boolean)) {
+    const p = line.split("|").map((x) => x.trim());
+    if (p[0] === "BRAND") {
+      current = { brand: p[1] || "", verdict: p[2] || "", ratio: p[3] || "-", delta: p[4] || "-", up: [], down: [] };
+      groups.push(current);
+    } else if ((p[0] === "UP" || p[0] === "DOWN") && current) {
+      const item: ChangeDriverItem = { brand: p[1] || "", category: p[2] || "", change: p[3] || "", delta: p[4] || "", amount: p[5] || "", action: p[6] || "" };
+      if (p[0] === "UP") current.up.push(item);
+      else current.down.push(item);
+    }
+  }
+  return groups;
+}
+
 function parseScoreCards(s: string): ScoreCard[] {
   return s.split("\n").filter(Boolean).map((line) => {
     const p = line.split("|").map((x) => x.trim());
@@ -192,6 +276,9 @@ function parseFixedVar(s: string): FixedVarRow[] {
         prev: p[3] || "-",
         yoy: p[4] || "-",
         share: p[5] || "-",
+        characteristics: p[6] || "",
+        trend: p[7] || "",
+        action: p[8] || "",
       };
     });
 }
@@ -201,8 +288,11 @@ function parseReport(text: string): ParsedReport {
     meta: parseMeta(getSection(text, "META")),
     bullets: parseBullets(getSection(text, "BULLETS")),
     kpi: parseKpi(getSection(text, "KPI")),
+    topSummary: parseTopSummary(getSection(text, "TOP_SUMMARY")),
     scoreCards: parseScoreCards(getSection(text, "SCORE_CARDS")),
     checkpoints: parseCheckpoints(getSection(text, "CHECKPOINTS")),
+    brandOverview: parseBrandOverview(getSection(text, "BRAND_OVERVIEW")),
+    changeDrivers: parseChangeDrivers(getSection(text, "CHANGE_DRIVERS")),
     fixedVar: parseFixedVar(getSection(text, "FIXED_VAR")),
     brandTable: getSection(text, "BRAND_TABLE"),
     riskTable: getSection(text, "RISK_TABLE"),
@@ -528,6 +618,108 @@ function highlightInsight(text: string): React.ReactNode[] {
   return parts;
 }
 
+// 그라데이션 헤더 — F&F CHINA 비용 적정성 검토
+function GradientHeader({ year, month, mode, yearType }: { year: number; month: number; mode: string; yearType: string }) {
+  const periodLabel = mode === "ytd"
+    ? `${year}년 1~${month}월 누적`
+    : `${year}년 ${month}월 (당월) · YTD 동반 분석`;
+  const typeLabel = yearType === "plan" ? "예산 기준" : "실적 기준";
+  return (
+    <div
+      className="mb-3 rounded-xl px-5 py-3.5 flex items-center justify-between text-white"
+      style={{ background: "linear-gradient(135deg, #1E3A5F 0%, #4338CA 100%)" }}
+    >
+      <div>
+        <div className="text-[15.5px] font-bold tracking-tight">F&amp;F CHINA 비용 적정성 검토</div>
+        <div className="text-[11.5px] mt-0.5 opacity-80">
+          {periodLabel} <span className="opacity-60">|</span> {typeLabel} <span className="opacity-60">|</span> 비용률 = 비용 × 1.13 / 리테일 매출
+        </div>
+      </div>
+      <div className="text-[11px] opacity-60">생성 {new Date().toLocaleDateString("ko-KR")}</div>
+    </div>
+  );
+}
+
+// 상단 3카드: 전체 총평 · 주목 브랜드 · 변동 TOP 3
+function TopSummaryCards({ data }: { data: TopSummary }) {
+  if (!data.overall && data.top3.length === 0) return null;
+  const verdictColor = data.overall?.verdict.includes("악화") ? "#B91C1C" : data.overall?.verdict.includes("개선") ? "#15803D" : "#4B5563";
+  const rankIcon = ["🥇", "🥈", "🥉"];
+  return (
+    <div className="mb-3 grid grid-cols-1 lg:grid-cols-3 gap-2.5">
+      {/* 전체 총평 */}
+      <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
+        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📊 전체 총평 · 해석</div>
+        {data.overall && (
+          <div className="text-[12px] leading-[1.65] text-slate-700">
+            <div>
+              법인 평균 비용률 YoY <b className="text-slate-900">{data.overall.delta}</b> ·{" "}
+              <b style={{ color: verdictColor }}>{data.overall.verdict}</b>
+            </div>
+            <div className="mt-0.5">
+              주도 분류 → <b>{data.overall.mainDriverCls}</b>{" "}
+              <span className="text-slate-500">({data.overall.mainDriverDelta})</span>
+            </div>
+            {data.overall.worstBrand && (
+              <div className="mt-1.5 px-2 py-1 bg-white border-l-2 border-rose-500 rounded-r text-[11.5px]">
+                💡 가장 큰 변동 브랜드: <b>{data.overall.worstBrand}</b>{" "}
+                <span className="text-rose-700 font-semibold">({data.overall.worstDelta})</span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      {/* 주목 브랜드 */}
+      <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
+        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">🔍 주목 브랜드 · 동인</div>
+        <div className="space-y-1.5">
+          {data.notableWorst && (
+            <div className="bg-rose-50 border-l-2 border-rose-600 rounded-r px-2 py-1.5">
+              <div className="text-[12px]">
+                <b className="text-rose-700">⚠ 주의: {data.notableWorst.brand}</b>{" "}
+                비용률 <b>{data.notableWorst.ratio}</b>{" "}
+                <span className="text-slate-400">(전년 {data.notableWorst.prev})</span>{" "}
+                <b className="text-rose-700">{data.notableWorst.delta}</b>
+              </div>
+            </div>
+          )}
+          {data.notableBest && (
+            <div className="bg-emerald-50 border-l-2 border-emerald-600 rounded-r px-2 py-1.5">
+              <div className="text-[12px]">
+                <b className="text-emerald-700">✅ 우수: {data.notableBest.brand}</b>{" "}
+                비용률 <b>{data.notableBest.ratio}</b>{" "}
+                <span className="text-slate-400">(전년 {data.notableBest.prev})</span>{" "}
+                <b className="text-emerald-700">{data.notableBest.delta}</b>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* TOP 3 */}
+      <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
+        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📌 주요 비용 변동 원인 TOP 3</div>
+        <div className="text-[12px] leading-[1.7] space-y-0.5">
+          {data.top3.map((t, i) => {
+            const positive = t.delta.startsWith("+");
+            return (
+              <div key={i} className="flex items-baseline gap-1.5">
+                <span>{rankIcon[i] ?? `${t.rank}.`}</span>
+                <span>
+                  <b>{t.brand}</b> {t.category}{" "}
+                  <b className={positive ? "text-rose-700" : "text-emerald-700"}>
+                    {positive ? "▲" : "▼"} {t.delta.replace(/[+\-]/, "")}
+                  </b>{" "}
+                  <span className="text-slate-400">({t.amount})</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExecSummaryHeader({
   meta,
   bullets,
@@ -813,188 +1005,349 @@ function CostStructureSection({
   );
 }
 
-// ② 브랜드별 비용 효율 종합 스코어 카드
+// ② 브랜드별 비용 효율 종합 스코어 카드 (예시.html 톤)
 function ScoreCardsGrid({ scoreCards }: { scoreCards: ScoreCard[] }) {
   if (scoreCards.length === 0) return null;
+  // 예시 HTML의 정확한 색상 매핑
   const GRADE_STYLE: Record<string, { border: string; bg: string; text: string; label: string }> = {
-    A: { border: "border-emerald-300", bg: "bg-emerald-50", text: "text-emerald-700", label: "우수" },
-    B: { border: "border-blue-300", bg: "bg-blue-50", text: "text-blue-700", label: "양호" },
-    C: { border: "border-amber-300", bg: "bg-amber-50", text: "text-amber-700", label: "주의" },
-    D: { border: "border-rose-300", bg: "bg-rose-50", text: "text-rose-700", label: "위험" },
+    A: { border: "#A7F3D0", bg: "#F0FDF4", text: "#15803D", label: "우수" },
+    B: { border: "#BFDBFE", bg: "#EFF6FF", text: "#0369A1", label: "양호" },
+    C: { border: "#FDE68A", bg: "#FFFBEB", text: "#B45309", label: "주의" },
+    D: { border: "#FECACA", bg: "#FEF2F2", text: "#B91C1C", label: "위험" },
   };
   const Bar = ({ value, max, color }: { value: number; max: number; color: string }) => (
-    <div className="bg-slate-200 rounded-sm h-1 overflow-hidden">
-      <div className={`h-1 ${color}`} style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
+    <div className="rounded-[3px] h-1 overflow-hidden" style={{ background: "#E5E7EB" }}>
+      <div className="h-1" style={{ width: `${Math.min(100, (value / max) * 100)}%`, background: color, borderRadius: 3 }} />
     </div>
   );
   return (
-    <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
-        <span className="inline-block w-1 h-4 bg-indigo-500 rounded-sm" />
-        <span className="text-[13px] font-semibold text-slate-800">② 브랜드별 비용 효율 종합 스코어</span>
+    <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
+      <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
+        ② 브랜드별 비용 효율 종합 스코어
       </div>
-      <div className="p-4">
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {scoreCards.map((s) => {
-            const g = GRADE_STYLE[s.grade] ?? GRADE_STYLE.C;
-            const deltaPositive = s.yoyDelta.startsWith("+");
-            return (
-              <div key={s.brand} className={`border-2 ${g.border} ${g.bg} rounded-xl p-3 flex flex-col`}>
-                <div className="text-[12.5px] font-bold text-slate-900">{s.brand}</div>
-                <div className="mt-1 flex items-baseline gap-1.5">
-                  <span className={`text-[32px] font-black leading-none ${g.text}`}>{s.grade}</span>
-                  <span className={`text-[11px] font-bold ${g.text}`}>{g.label}</span>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+        {scoreCards.map((s) => {
+          const g = GRADE_STYLE[s.grade] ?? GRADE_STYLE.C;
+          const deltaPositive = s.yoyDelta.startsWith("+");
+          return (
+            <div
+              key={s.brand}
+              className="rounded-xl p-3"
+              style={{ border: `2px solid ${g.border}`, background: g.bg }}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] font-bold text-slate-900">{s.brand}</span>
+              </div>
+              <div className="mt-1.5 flex items-baseline gap-1.5">
+                <span className="font-black leading-none" style={{ fontSize: 36, color: g.text }}>{s.grade}</span>
+                <span className="text-[12px] font-bold" style={{ color: g.text }}>{g.label}</span>
+              </div>
+              <div className="text-[10.5px] text-slate-500 mt-0.5">종합 {s.total}점 / 100점</div>
+              <div className="mt-1.5 space-y-1">
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-500"><span>추세</span><span className="font-semibold" style={{ color: "#15803D" }}>{s.trend.score}점</span></div>
+                  <Bar value={s.trend.score} max={35} color="#15803D" />
+                  <div className="text-[9.5px] text-slate-400 mt-0.5 truncate">{s.trend.note}</div>
                 </div>
-                <div className="text-[10.5px] text-slate-500 mt-0.5">종합 {s.total}점 / 100점</div>
-                <div className="mt-2 space-y-1.5">
-                  <div>
-                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>추세</span><span className="font-semibold">{s.trend.score}점</span></div>
-                    <Bar value={s.trend.score} max={35} color="bg-emerald-500" />
-                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.trend.note}</div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>수준</span><span className="font-semibold">{s.level.score}점</span></div>
-                    <Bar value={s.level.score} max={30} color="bg-blue-500" />
-                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.level.note}</div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>광고비율</span><span className="font-semibold">{s.ad.score}점</span></div>
-                    <Bar value={s.ad.score} max={20} color="bg-amber-500" />
-                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.ad.note}</div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-[9.5px] text-slate-500"><span>계획집행</span><span className="font-semibold">{s.plan.score}점</span></div>
-                    <Bar value={s.plan.score} max={15} color="bg-violet-500" />
-                    <div className="text-[9px] text-slate-400 mt-0.5 truncate">{s.plan.note}</div>
-                  </div>
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-500"><span>수준</span><span className="font-semibold" style={{ color: "#0369A1" }}>{s.level.score}점</span></div>
+                  <Bar value={s.level.score} max={30} color="#0369A1" />
+                  <div className="text-[9.5px] text-slate-400 mt-0.5 truncate">{s.level.note}</div>
                 </div>
-                <div className="mt-2 pt-2 border-t border-slate-200 text-[10.5px]">
-                  비용률 <strong className="text-slate-900">{s.ratio.toFixed(2)}%</strong>{" "}
-                  <span className={`font-semibold ${deltaPositive ? "text-rose-600" : "text-emerald-600"}`}>{s.yoyDelta}</span>
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-500"><span>광고비율</span><span className="font-semibold" style={{ color: "#B45309" }}>{s.ad.score}점</span></div>
+                  <Bar value={s.ad.score} max={20} color="#B45309" />
+                  <div className="text-[9.5px] text-slate-400 mt-0.5 truncate">{s.ad.note}</div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-[10px] text-slate-500"><span>계획집행</span><span className="font-semibold" style={{ color: "#7C3AED" }}>{s.plan.score}점</span></div>
+                  <Bar value={s.plan.score} max={15} color="#7C3AED" />
+                  <div className="text-[9.5px] text-slate-400 mt-0.5 truncate">{s.plan.note}</div>
                 </div>
               </div>
-            );
-          })}
-        </div>
-        <div className="mt-3 text-[10px] text-slate-400 flex flex-wrap gap-x-3">
-          <span><strong className="text-emerald-700">A(75+)</strong> 우수</span>
-          <span><strong className="text-blue-700">B(55~74)</strong> 양호</span>
-          <span><strong className="text-amber-700">C(35~54)</strong> 주의</span>
-          <span><strong className="text-rose-700">D(~34)</strong> 위험</span>
-          <span className="ml-2">· 추세(35) + 수준(30) + 광고비율(20) + 계획집행(15) = 100</span>
-        </div>
+              <div className="mt-2 pt-1.5 border-t text-[11px]" style={{ borderColor: g.border }}>
+                총비용률 <strong className="text-slate-900">{s.ratio.toFixed(2)}%</strong>{" "}
+                <span className="font-semibold" style={{ color: deltaPositive ? "#B91C1C" : "#15803D" }}>{s.yoyDelta}</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2.5 text-[10.5px] text-slate-500 flex flex-wrap gap-x-3">
+        <span><strong style={{ color: "#15803D" }}>A(75+)</strong> 우수</span>
+        <span><strong style={{ color: "#0369A1" }}>B(55~74)</strong> 양호</span>
+        <span><strong style={{ color: "#B45309" }}>C(35~54)</strong> 주의</span>
+        <span><strong style={{ color: "#B91C1C" }}>D(~34)</strong> 위험</span>
+        <span className="ml-2">· 추세(35) + 수준(30) + 광고비율(20) + 계획집행(15) = 100</span>
       </div>
     </div>
   );
 }
 
-// ③ 브랜드별 체크포인트
+// ③ 브랜드별 체크포인트 (예시.html 톤)
 function CheckpointsGrid({ groups }: { groups: CheckpointGroup[] }) {
   if (groups.length === 0) return null;
+  // 예시 HTML의 정확한 색상 매핑
   const SEV_STYLE: Record<string, { border: string; bg: string }> = {
-    "🔴": { border: "border-rose-200", bg: "bg-rose-50" },
-    "🟡": { border: "border-amber-200", bg: "bg-amber-50" },
-    "✅": { border: "border-emerald-200", bg: "bg-emerald-50" },
-    "📌": { border: "border-blue-200", bg: "bg-blue-50" },
+    "🔴": { border: "#FECACA", bg: "#FEF2F2" },
+    "🟡": { border: "#FDE68A", bg: "#FFFBEB" },
+    "✅": { border: "#A7F3D0", bg: "#F0FDF4" },
+    "📌": { border: "#BFDBFE", bg: "#EFF6FF" },
+    "📊": { border: "#E5E7EB", bg: "#F9FAFB" },
+    "🔵": { border: "#BAE6FD", bg: "#F0F9FF" },
+    "▸": { border: "#E5E7EB", bg: "#FAFAFA" },
+    "ℹ": { border: "#DDD6FE", bg: "#F5F3FF" },
   };
   return (
-    <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
-        <span className="inline-block w-1 h-4 bg-indigo-500 rounded-sm" />
-        <span className="text-[13px] font-semibold text-slate-800">③ 브랜드별 체크포인트 — 지금 바로 확인해야 할 것</span>
+    <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
+      <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
+        ③ 브랜드별 체크포인트 — 지금 바로 확인해야 할 것
       </div>
-      <div className="p-4 grid grid-cols-2 lg:grid-cols-5 gap-3">
-        {groups.map((g) => (
-          <div key={g.brand} className="border border-slate-200 rounded-xl bg-white p-3">
-            <div className="text-[13px] font-bold text-slate-900 border-b border-slate-200 pb-1.5 mb-2 flex items-center justify-between">
-              <span>{g.brand}</span>
-              <span className="text-[11px] text-slate-400">등급 {g.grade}</span>
-            </div>
-            {g.items.length === 0 ? (
-              <div className="text-[11px] text-slate-400 py-2">특이사항 없음</div>
-            ) : (
-              <div className="space-y-1.5">
-                {g.items.map((it, i) => {
-                  const key = it.severity.charAt(0);
-                  const st = SEV_STYLE[key] ?? SEV_STYLE["📌"];
-                  return (
-                    <div key={i} className={`border ${st.border} ${st.bg} rounded-md p-2`}>
-                      <div className="text-[11.5px] font-semibold text-slate-900 leading-snug">
-                        {it.severity} <span className="font-bold">{it.category}</span>
-                      </div>
-                      <div className="text-[10.5px] text-slate-700 mt-0.5">
-                        {it.change} <span className="font-semibold">{it.delta}</span>
-                        {it.amount !== "-" && <span className="text-slate-500"> · {it.amount}</span>}
-                      </div>
-                      <div className="text-[10.5px] text-slate-500 mt-0.5 leading-snug">{it.note}</div>
-                    </div>
-                  );
-                })}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+        {groups.map((g) => {
+          const gradeIcon = g.grade === "A" ? "🟢" : g.grade === "B" ? "🟢" : g.grade === "C" ? "🟡" : "🔴";
+          return (
+            <div key={g.brand} className="rounded-[10px] border border-[#E5E7EB] bg-white px-3 py-2.5">
+              <div className="text-[13px] font-bold text-slate-900 border-b-2 border-[#E5E7EB] pb-1 mb-1">
+                {g.brand} {gradeIcon}
               </div>
-            )}
-          </div>
-        ))}
+              {g.items.length === 0 ? (
+                <div className="text-[11px] text-slate-400 py-1.5">특이사항 없음</div>
+              ) : (
+                <div className="space-y-1.5 mt-1">
+                  {g.items.map((it, i) => {
+                    const key = it.severity.charAt(0);
+                    const st = SEV_STYLE[key] ?? SEV_STYLE["📌"];
+                    return (
+                      <div key={i} className="rounded-[7px] px-2 py-1.5" style={{ border: `1px solid ${st.border}`, background: st.bg }}>
+                        <div className="text-[11.5px] font-semibold text-slate-900 leading-snug">
+                          {it.severity} {it.category} — {it.change}
+                          {it.delta && <span className="font-semibold"> ({it.delta})</span>}
+                        </div>
+                        <div className="text-[10.5px] text-slate-500 mt-0.5 leading-snug">
+                          {it.amount !== "-" && <span>당해 {it.amount} 발생. </span>}{it.note}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-// 고정/변동/준고정 비용 구조 분석
+// 고정/변동/준고정 비용 구조 분석 (예시 톤)
 function FixedVarTable({ rows }: { rows: FixedVarRow[] }) {
   if (rows.length === 0) return null;
-  // 브랜드별로 그룹
   const byBrand: Record<string, FixedVarRow[]> = {};
   for (const r of rows) {
     if (!byBrand[r.brand]) byBrand[r.brand] = [];
     byBrand[r.brand].push(r);
   }
-  const CLS_COLOR: Record<string, string> = {
-    고정비: "bg-blue-50 text-blue-700",
-    준고정비: "bg-amber-50 text-amber-700",
-    변동비: "bg-emerald-50 text-emerald-700",
+  const CLS_STYLE: Record<string, { bg: string; color: string }> = {
+    고정비: { bg: "#EFF6FF", color: "#0369A1" },
+    준고정비: { bg: "#FFFBEB", color: "#B45309" },
+    변동비: { bg: "#F0FDF4", color: "#15803D" },
   };
   return (
-    <div className="mb-5 rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
-        <span className="inline-block w-1 h-4 bg-emerald-500 rounded-sm" />
-        <span className="text-[13px] font-semibold text-slate-800">⑦ 브랜드별 비용 구조 (고정 / 준고정 / 변동)</span>
+    <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
+      <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
+        ⑦ 브랜드별 비용 구조 (고정 / 준고정 / 변동)
       </div>
-      <div className="p-4 overflow-x-auto">
-        <table className="w-full text-[12px]" style={{ borderCollapse: "separate", borderSpacing: 0, fontVariantNumeric: "tabular-nums" }}>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
           <thead>
-            <tr className="bg-slate-50 text-slate-600 text-[11px]">
-              <th className="px-3 py-2 text-left border-y border-slate-200">브랜드</th>
-              <th className="px-3 py-2 text-center border-y border-slate-200">분류</th>
-              <th className="px-3 py-2 text-right border-y border-slate-200">당해K</th>
-              <th className="px-3 py-2 text-right border-y border-slate-200">전년K</th>
-              <th className="px-3 py-2 text-right border-y border-slate-200">YoY</th>
-              <th className="px-3 py-2 text-right border-y border-slate-200">구성비</th>
+            <tr className="bg-[#F9FAFB] text-[11px] text-[#4B5563]">
+              <th className="border border-[#E5E7EB] px-2 py-1.5 text-left">브랜드</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">분류</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">당해K</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">전년K</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">YoY</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">구성비</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5 text-left min-w-[260px]">구조 분석 · 액션</th>
             </tr>
           </thead>
           <tbody>
-            {Object.entries(byBrand).map(([brand, brandRows]) => (
-              <React.Fragment key={brand}>
-                <tr className="border-b border-slate-100">
-                  <td className="px-3 py-2 font-semibold text-slate-800" rowSpan={brandRows.length}>{brand}</td>
-                  <td className={`px-3 py-2 text-center font-semibold rounded ${CLS_COLOR[brandRows[0].classification] ?? ""}`}>{brandRows[0].classification}</td>
-                  <td className="px-3 py-2 text-right">{brandRows[0].amount}</td>
-                  <td className="px-3 py-2 text-right text-slate-500">{brandRows[0].prev}</td>
-                  <td className="px-3 py-2 text-right font-semibold">{brandRows[0].yoy}</td>
-                  <td className="px-3 py-2 text-right">{brandRows[0].share}</td>
-                </tr>
-                {brandRows.slice(1).map((r, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className={`px-3 py-2 text-center font-semibold rounded ${CLS_COLOR[r.classification] ?? ""}`}>{r.classification}</td>
-                    <td className="px-3 py-2 text-right">{r.amount}</td>
-                    <td className="px-3 py-2 text-right text-slate-500">{r.prev}</td>
-                    <td className="px-3 py-2 text-right font-semibold">{r.yoy}</td>
-                    <td className="px-3 py-2 text-right">{r.share}</td>
-                  </tr>
-                ))}
-              </React.Fragment>
-            ))}
+            {Object.entries(byBrand).map(([brand, brandRows]) => {
+              const head = brandRows.find((r) => r.characteristics) ?? brandRows[0];
+              return (
+                <React.Fragment key={brand}>
+                  {brandRows.map((r, i) => {
+                    const cls = CLS_STYLE[r.classification];
+                    return (
+                      <tr key={i}>
+                        {i === 0 && (
+                          <td className="border border-[#E5E7EB] px-2 py-1.5 font-bold text-slate-900 align-top" rowSpan={brandRows.length}>{brand}</td>
+                        )}
+                        <td className="border border-[#E5E7EB] px-2 py-1.5 text-center font-semibold" style={cls ? { background: cls.bg, color: cls.color } : undefined}>
+                          {r.classification}
+                        </td>
+                        <td className="border border-[#E5E7EB] px-2 py-1.5 text-right font-medium">{r.amount}</td>
+                        <td className="border border-[#E5E7EB] px-2 py-1.5 text-right text-slate-400">{r.prev}</td>
+                        <td className="border border-[#E5E7EB] px-2 py-1.5 text-right font-semibold">{r.yoy}</td>
+                        <td className="border border-[#E5E7EB] px-2 py-1.5 text-right">{r.share}</td>
+                        {i === 0 && (
+                          <td className="border border-[#E5E7EB] px-3 py-2 text-left align-top text-[11.5px] leading-[1.55]" rowSpan={brandRows.length}>
+                            {head.characteristics && (
+                              <div className="text-slate-700"><span className="font-semibold text-slate-900">▸ 특성:</span> {head.characteristics}</div>
+                            )}
+                            {head.trend && (
+                              <div className="text-slate-600 mt-1"><span className="font-semibold text-slate-700">▸ 추이:</span> {head.trend}</div>
+                            )}
+                            {head.action && (
+                              <div className="text-indigo-700 mt-1.5 bg-indigo-50 border-l-2 border-indigo-400 pl-2 py-1 rounded-r">
+                                <span className="font-semibold">▸ 액션:</span> {head.action}
+                              </div>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ④ 브랜드별 한눈에 보기 (BRAND_OVERVIEW)
+function BrandOverviewTable({ rows }: { rows: BrandOverviewRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
+      <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
+        ④ 브랜드별 비용 현황 한눈에 보기
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[12px]" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
+          <thead>
+            <tr className="bg-[#F9FAFB] text-[11px] text-[#4B5563]">
+              <th className="border border-[#E5E7EB] px-2 py-1.5 text-left">브랜드</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">매출(K)</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">총비용률</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">전년</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">YoY</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">인건비율</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">광고비율</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5 text-left min-w-[180px]">최대 변동 항목</th>
+              <th className="border border-[#E5E7EB] px-2 py-1.5">신호</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const positive = r.delta.startsWith("+");
+              return (
+                <tr key={i}>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 font-bold text-slate-900">{r.brand}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-right">{r.sales}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-right font-bold text-[13px]">{r.ratio}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-right text-slate-400">{r.prevRatio}</td>
+                  <td className={`border border-[#E5E7EB] px-2 py-1.5 text-right font-bold ${positive ? "text-rose-700" : "text-emerald-700"}`}>{r.delta}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-right">{r.labRatio}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-right">{r.adRatio}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-[11px] text-slate-600">{r.maxItem}</td>
+                  <td className="border border-[#E5E7EB] px-2 py-1.5 text-center text-[15px]">{r.signal}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ⑤ 변동 원인 분석 (CHANGE_DRIVERS) — 브랜드별 상승/하락 grid
+function ChangeDriversGrid({ groups }: { groups: ChangeDriverBrand[] }) {
+  if (groups.length === 0) return null;
+  const cardBg = (verdict: string) => {
+    if (verdict === "악화") return "bg-rose-50 border-rose-200";
+    if (verdict === "개선") return "bg-emerald-50 border-emerald-200";
+    return "bg-slate-50 border-slate-200";
+  };
+  return (
+    <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
+      <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
+        ⑤ 비용 변동 원인 분석 — 왜 늘었나 / 왜 줄었나
+      </div>
+      {/* CSS columns 레이아웃 — 카드 자연 높이 + 열별 패킹 (공백 최소화) */}
+      <div className="columns-1 lg:columns-2 gap-3 [column-fill:balance]">
+        {groups.map((g) => {
+          const positive = g.delta.startsWith("+");
+          return (
+            <div key={g.brand} className={`border rounded-lg p-3 mb-3 break-inside-avoid ${cardBg(g.verdict)}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-[13.5px] font-bold text-slate-900">{g.brand}</span>
+                <span className="text-[15px]">{g.verdict === "악화" ? "🔴" : g.verdict === "개선" ? "🟢" : "🟡"}</span>
+                <span className="ml-auto text-[11px] text-slate-600">
+                  총비용률 <b className="text-slate-900 text-[12.5px]">{g.ratio}</b>{" "}
+                  <b className={positive ? "text-rose-700" : "text-emerald-700"}>{g.delta}</b>
+                </span>
+              </div>
+              {g.up.length > 0 && (
+                <>
+                  <div className="text-[10.5px] font-bold text-rose-700 mt-2 mb-1.5">📈 상승 원인</div>
+                  <div className="space-y-1.5">
+                    {g.up.map((it, i) => (
+                      <div key={i} className="bg-white/70 rounded px-2 py-1.5 border border-rose-100">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-[12px] font-semibold text-slate-900">{it.category}</span>
+                          <span className="text-[10.5px] text-slate-400 whitespace-nowrap">{it.change}</span>
+                          <span className="text-[12px] font-bold text-rose-700 whitespace-nowrap">{it.delta}</span>
+                          <span className="text-[10.5px] text-slate-500 whitespace-nowrap">{it.amount}</span>
+                        </div>
+                        {it.action && (
+                          <div className="text-[10.5px] text-slate-600 mt-0.5 leading-snug">
+                            <span className="text-rose-600 font-semibold">▸ 액션:</span> {it.action}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {g.down.length > 0 && (
+                <>
+                  <div className="text-[10.5px] font-bold text-emerald-700 mt-2 mb-1.5">📉 하락 요인</div>
+                  <div className="space-y-1.5">
+                    {g.down.map((it, i) => (
+                      <div key={i} className="bg-white/70 rounded px-2 py-1.5 border border-emerald-100">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-[12px] font-semibold text-slate-900">{it.category}</span>
+                          <span className="text-[10.5px] text-slate-400 whitespace-nowrap">{it.change}</span>
+                          <span className="text-[12px] font-bold text-emerald-700 whitespace-nowrap">{it.delta}</span>
+                          <span className="text-[10.5px] text-slate-500 whitespace-nowrap">{it.amount}</span>
+                        </div>
+                        {it.action && (
+                          <div className="text-[10.5px] text-slate-600 mt-0.5 leading-snug">
+                            <span className="text-emerald-600 font-semibold">▸ 액션:</span> {it.action}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {g.up.length === 0 && g.down.length === 0 && (
+                <div className="mt-2 px-2 py-2 bg-white/60 rounded border border-slate-200">
+                  <div className="text-[11.5px] font-semibold text-slate-700">▸ 현황: 비용 구조 안정적</div>
+                  <div className="text-[10.5px] text-slate-500 mt-0.5 leading-snug">
+                    전년 대비 카테고리 단위 의미 있는 변동 없음. 현 추세 유지 시 양호한 비용 효율 지속 예상.
+                    분기 단위 모니터링 권고.
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1685,10 +2038,16 @@ ${inner}
                   background: #FCFCFD;
                 }
               `}</style>
-              {/* 1. Executive Summary */}
+              {/* 그라데이션 헤더 */}
+              <GradientHeader year={year} month={month} mode={mode} yearType={yearType} />
+
+              {/* 상단 3카드 */}
+              <TopSummaryCards data={report.topSummary} />
+
+              {/* Executive Summary */}
               <ExecSummaryHeader meta={report.meta} bullets={report.bullets} />
 
-              {/* 2. KPI Cards */}
+              {/* KPI Cards */}
               <KpiCards kpi={report.kpi} />
 
               {/* ② 종합 스코어 */}
@@ -1696,6 +2055,12 @@ ${inner}
 
               {/* ③ 체크포인트 */}
               <CheckpointsGrid groups={report.checkpoints} />
+
+              {/* ④ 브랜드별 한눈에 보기 */}
+              <BrandOverviewTable rows={report.brandOverview} />
+
+              {/* ⑤ 변동 원인 분석 */}
+              <ChangeDriversGrid groups={report.changeDrivers} />
 
               {/* 3. YOY 풀폭 위, Risk 좌우 분할 아래 (공백 최소화) */}
               {(() => {

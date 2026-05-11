@@ -1,6 +1,9 @@
 """
 비용 데이터 전처리 스크립트
 CSV 파일을 읽어 공통 스키마로 변환하고 JSON으로 저장합니다.
+
+판매매출 actual CSV는 scripts/pull_sales_from_snowflake.py가 Snowflake에서
+미리 갱신해두는 것을 전제로 합니다. plan CSV는 수동으로 유지됩니다.
 """
 
 import pandas as pd

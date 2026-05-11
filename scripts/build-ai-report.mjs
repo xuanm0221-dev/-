@@ -1098,8 +1098,7 @@ function buildDetailed() {
 // ────────────────────────────────────────────────
 function calcScore(brand) {
   const bd = brandData[brand];
-  const y = bd.ytd;
-  const m = bd.monthly;
+  const y = bd.ytd; // ②~⑤ 분석은 항상 YTD 기준 (당월은 참고용)
   const sales = y.current.sales;
   const salesPrev = y.previous?.sales ?? 0;
   const cost = y.current.cost;
@@ -1107,9 +1106,12 @@ function calcScore(brand) {
   const ratio = calcCostRatio(cost, sales);
   const ratioPrev = calcCostRatio(costPrev, salesPrev);
   const yoyDelta = ratio - ratioPrev; // %p
+  const salesYoy = salesPrev > 0 ? (sales / salesPrev) * 100 : null;
+  const costYoy = costPrev > 0 ? (cost / costPrev) * 100 : null;
 
-  // 1) 추세 (35점) — YoY 비용률 변화
+  // 1) 추세 (35점) — YTD YoY 비용률 변화 (단, 매출 급증/급감 시 매출 효과 보정)
   let trendScore = 15;
+  let trendNote = `YoY ${yoyDelta >= 0 ? "+" : ""}${yoyDelta.toFixed(2)}%p`;
   if (yoyDelta < -3) trendScore = 35;
   else if (yoyDelta < -1) trendScore = 28;
   else if (yoyDelta < 0) trendScore = 22;
@@ -1117,7 +1119,25 @@ function calcScore(brand) {
   else if (yoyDelta < 3) trendScore = 8;
   else trendScore = 0;
 
-  // 2) 수준 (30점) — MLB 기준 대비
+  // 매출 ±20% 초과 변동 시 추세 점수 신뢰도 보정
+  if (salesYoy != null && (salesYoy > 130 || salesYoy < 80)) {
+    // 매출 급변 → 비용률 변화가 매출 효과일 수 있음. 추세 점수 절반으로 cap
+    const capped = Math.min(trendScore, 17);
+    if (capped < trendScore) {
+      trendScore = capped;
+      trendNote = `${trendNote} (매출 YoY ${Math.round(salesYoy)}% — 매출 효과 가능, 비용 YoY ${costYoy != null ? Math.round(costYoy) + "%" : "-"})`;
+    }
+  }
+
+  // 절대 비용률이 매우 높으면 추세 점수에 상한 (적자 구조)
+  if (ratio > 50) {
+    trendScore = Math.min(trendScore, 8);
+    trendNote = `${trendNote} | 비용률 ${ratio.toFixed(1)}% 적자 구조 — 매출 확대 우선`;
+  } else if (ratio > 30) {
+    trendScore = Math.min(trendScore, 15);
+  }
+
+  // 2) 수준 (30점) — 절대 비용률 + MLB 대비 (둘 결합)
   let levelScore = 30;
   let levelNote = "MLB 기준 브랜드";
   if (brand === "공통") {
@@ -1126,7 +1146,14 @@ function calcScore(brand) {
   } else if (brand !== "MLB") {
     const mlbRatio = calcCostRatio(brandData["MLB"].ytd.current.cost, brandData["MLB"].ytd.current.sales);
     const diff = ratio - mlbRatio;
-    if (diff <= -1) { levelScore = 30; levelNote = `MLB 대비 ${diff.toFixed(1)}%p (낮음)`; }
+    // 절대 비용률 패널티 우선
+    if (ratio > 50) {
+      levelScore = 0;
+      levelNote = `비용률 ${ratio.toFixed(1)}% (적자 구조)`;
+    } else if (ratio > 30) {
+      levelScore = 5;
+      levelNote = `비용률 ${ratio.toFixed(1)}% (높음)`;
+    } else if (diff <= -1) { levelScore = 30; levelNote = `MLB 대비 ${diff.toFixed(1)}%p (낮음)`; }
     else if (diff <= 1) { levelScore = 25; levelNote = `MLB 대비 ${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%p`; }
     else if (diff <= 3) { levelScore = 15; levelNote = `MLB 대비 +${diff.toFixed(1)}%p`; }
     else { levelScore = 5; levelNote = `MLB 대비 +${diff.toFixed(1)}%p (높음)`; }
@@ -1166,7 +1193,7 @@ function calcScore(brand) {
 
   return {
     brand, ratio, yoyDelta, total, grade,
-    trend: { score: trendScore, note: `YoY ${yoyDelta >= 0 ? "+" : ""}${yoyDelta.toFixed(2)}%p` },
+    trend: { score: trendScore, note: trendNote },
     level: { score: levelScore, note: levelNote },
     ad: { score: adScore, note: adNote, ratio: adRatio, yoy: adRatio - adRatioPrev },
     plan: { score: planScore, note: planNote, planRatio },
@@ -1195,12 +1222,11 @@ function buildScoreCards() {
 // ────────────────────────────────────────────────
 function buildCheckpoints() {
   const lines = [];
-  // 포맷: BRAND_HEADER|brand|grade
-  //       ITEM|brand|severity|category|prevRatio→currRatio|delta|amount|note
   for (const br of BRANDS_WITH_CORP) {
     const bd = brandData[br];
     const sales = bd.ytd.current.sales;
     const salesPrev = bd.ytd.previous?.sales ?? 0;
+    const useAmountBased = sales <= 0; // 공통: 금액 YoY 기준
     const s = calcScore(br);
     lines.push(`BRAND_HEADER|${br === "법인" ? "법인전체" : br}|${s.grade}`);
 
@@ -1209,48 +1235,117 @@ function buildCheckpoints() {
     for (const cat of cats) {
       const cur = bd.ytd.currCats[cat] ?? 0;
       const prv = bd.ytd.prevCats[cat] ?? 0;
-      const r = calcCostRatio(cur, sales);
-      const rp = calcCostRatio(prv, salesPrev);
-      const delta = r - rp;
       const isSeasonal = SEASONAL_ITEMS.has(cat);
-      // Red pack 시점차로 인한 인건비 변동은 제외
-      const isLaborTiming = cat === "인건비" && isRedPackTimingDiff(bd) && delta < 0;
-      if (isSeasonal || isLaborTiming) continue;
-      if (Math.abs(delta) < 0.3) continue; // 미미한 변동 제외
+      if (isSeasonal) continue;
 
-      let severity, note;
-      if (delta >= 3) {
-        severity = "🔴 즉시"; note = "급증 원인 규명 및 절감 계획 수립 필요";
-      } else if (delta >= 1) {
-        severity = "🟡 모니터링"; note = "추세 지속 여부 모니터링 필요";
-      } else if (delta <= -1) {
-        severity = "✅ 개선"; note = "효율화 달성 — 지속 유지 확인 권고";
-      } else continue;
+      let severity, note, change, deltaStr, sortKey;
+      if (useAmountBased) {
+        // 공통: 금액 YoY 기준
+        const yoy = yoyNum(cur, prv);
+        if (yoy == null) continue;
+        const yoyPct = yoy - 100;
+        if (Math.abs(yoyPct) < 3) continue; // ±3% 미만 미미한 변동 제외
+        if (cat === "인건비" && isRedPackTimingDiff(bd) && yoyPct < 0) continue;
 
-      items.push({ cat, severity, prev: rp, curr: r, delta, amount: cur, note });
+        if (yoyPct >= 30) { severity = "🔴 즉시"; note = "큰 증가 — 원인 규명 및 절감 계획 수립 필요"; }
+        else if (yoyPct >= 10) { severity = "🟡 모니터링"; note = "증가 추세 — 지속 여부 모니터링"; }
+        else if (yoyPct >= 3) { severity = "📊 추적"; note = "소폭 증가, 추세 안정성 점검"; }
+        else if (yoyPct <= -20) { severity = "✅ 개선"; note = "큰 절감 — 지속 유지 확인 권고"; }
+        else if (yoyPct <= -5) { severity = "🔵 절감"; note = "소폭 절감, 일회성 여부 점검"; }
+        else continue;
+
+        change = `${fmtK(prv)}K → ${fmtK(cur)}K`;
+        deltaStr = `${yoyPct >= 0 ? "+" : ""}${Math.round(yoyPct)}%`;
+        sortKey = Math.abs(yoyPct);
+        items.push({ cat, severity, change, delta: deltaStr, amount: cur, note, sortKey });
+      } else {
+        // 일반: 비용률 변화 기준
+        const r = calcCostRatio(cur, sales);
+        const rp = calcCostRatio(prv, salesPrev);
+        const delta = r - rp;
+        const isLaborTiming = cat === "인건비" && isRedPackTimingDiff(bd) && delta < 0;
+        if (isLaborTiming) continue;
+        if (Math.abs(delta) < 0.05) continue;
+
+        if (delta >= 3) { severity = "🔴 즉시"; note = "급증 원인 규명 및 절감 계획 수립 필요"; }
+        else if (delta >= 1) { severity = "🟡 모니터링"; note = "추세 지속 여부 모니터링 필요"; }
+        else if (delta >= 0.3) { severity = "📊 추적"; note = "소폭 상승, 추세 안정성 점검"; }
+        else if (delta <= -1) { severity = "✅ 개선"; note = "효율화 달성 — 지속 유지 확인 권고"; }
+        else if (delta <= -0.3) { severity = "🔵 절감"; note = "소폭 절감, 일회성 여부 점검"; }
+        else { severity = "▸ 안정"; note = "전년 대비 안정적 유지"; }
+
+        change = `${rp.toFixed(2)}%→${r.toFixed(2)}%`;
+        deltaStr = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%p`;
+        sortKey = Math.abs(delta);
+        items.push({ cat, severity, change, delta: deltaStr, amount: cur, note, sortKey });
+      }
     }
-    // 큰 변동 순으로 정렬, 상위 3개
-    items.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
-    for (const it of items.slice(0, 3)) {
+    items.sort((a, b) => b.sortKey - a.sortKey);
+    const visible = items.slice(0, 4);
+    for (const it of visible) {
       lines.push([
         "ITEM", br === "법인" ? "법인전체" : br, it.severity, it.cat,
-        `${it.prev.toFixed(2)}%→${it.curr.toFixed(2)}%`,
-        `${it.delta >= 0 ? "+" : ""}${it.delta.toFixed(2)}%p`,
+        it.change,
+        it.delta,
         `${fmtK(it.amount)}K`, it.note,
       ].join("|"));
     }
-    // MLB 대비 구조 차이 (브랜드만, 법인/공통 제외)
+
+    // 인건비 추이 추가 (Red pack 시점차로 위에서 제외된 경우 별도 정보로 표시)
+    if (isRedPackTimingDiff(bd)) {
+      const lab = bd.ytd.currCats["인건비"] ?? 0;
+      const labPrev = bd.ytd.prevCats["인건비"] ?? 0;
+      const hc = bd.ytd.current.headcountSum;
+      const hcPrev = bd.ytd.previous?.headcountSum ?? 0;
+      const perCap = hc > 0 ? lab / hc : 0;
+      const perCapPrev = hcPrev > 0 ? labPrev / hcPrev : 0;
+      const perCapYoy = perCapPrev > 0 ? (perCap / perCapPrev - 1) * 100 : null;
+      const perCapStr = perCapYoy != null ? `${perCapYoy >= 0 ? "+" : ""}${perCapYoy.toFixed(1)}%` : "-";
+      lines.push([
+        "ITEM", br === "법인" ? "법인전체" : br, "ℹ️ 시점차", "인건비 (Red pack)",
+        `인당 ${perCapPrev.toFixed(1)}K → ${perCap.toFixed(1)}K`,
+        perCapStr,
+        `${fmtK(lab)}K`,
+        "Red pack 미지급 시점차 영향 — YTD 누적 정상화 시 재평가",
+      ].join("|"));
+    }
+
+    // MLB 대비 구조 차이 (브랜드만)
     if (br !== "법인" && br !== "공통" && br !== "MLB") {
       const mlbRatio = calcCostRatio(brandData["MLB"].ytd.current.cost, brandData["MLB"].ytd.current.sales);
       const brRatio = calcCostRatio(bd.ytd.current.cost, sales);
       const structDiff = brRatio - mlbRatio;
-      if (Math.abs(structDiff) >= 2) {
+      if (Math.abs(structDiff) >= 1) {
         lines.push([
-          "ITEM", br, "📌 구조", "총비용률",
+          "ITEM", br, "📌 구조", "MLB 대비 총비용률",
           `MLB ${mlbRatio.toFixed(1)}% vs ${br} ${brRatio.toFixed(1)}%`,
           `${structDiff >= 0 ? "+" : ""}${structDiff.toFixed(1)}%p`,
-          "—", structDiff > 0 ? "구조적 비효율 가능성 점검" : "비용 효율 우수",
+          "—",
+          structDiff > 0 ? "구조적 비효율 가능성 점검 — 채널/단가/계약 차이 분석" : "MLB 대비 비용 효율 우수",
         ].join("|"));
+      }
+    }
+
+    // 계획비 이상 항목 (계획비 > 110% 또는 < 80%, 위에서 안 잡힌 경우)
+    const planCats = bd.ytdPlan?.cats ?? {};
+    for (const cat of Object.keys(planCats)) {
+      if (SEASONAL_ITEMS.has(cat)) continue;
+      const cur = bd.ytd.currCats[cat] ?? 0;
+      const plan = planCats[cat] ?? 0;
+      if (plan <= 0) continue;
+      const planR = (cur / plan) * 100;
+      if (planR > 110) {
+        // 이미 visible items에 있으면 skip
+        if (visible.some((v) => v.cat === cat)) continue;
+        lines.push([
+          "ITEM", br === "법인" ? "법인전체" : br, "🟡 계획비",
+          `${cat} 계획비 ${Math.round(planR)}%`,
+          `실적 ${fmtK(cur)}K / 계획 ${fmtK(plan)}K`,
+          `+${Math.round(planR - 100)}%p`,
+          `${fmtK(cur)}K`,
+          "계획 초과 — 원인 점검 및 잔여 분기 집행 조정",
+        ].join("|"));
+        break; // 최대 1개만
       }
     }
   }
@@ -1262,7 +1357,6 @@ function buildCheckpoints() {
 // ────────────────────────────────────────────────
 function buildFixedVarAnalysis() {
   const lines = [];
-  // 헤더: classification|brand|category|amount|prev|yoy|share|note
   lines.push("BY_BRAND_HEADER");
   for (const br of BRANDS_WITH_CORP) {
     const bd = brandData[br];
@@ -1278,11 +1372,66 @@ function buildFixedVarAnalysis() {
       }
     }
     const total = totals.고정비 + totals.준고정비 + totals.변동비;
+    const prevTotal = prevTotals.고정비 + prevTotals.준고정비 + prevTotals.변동비;
+
+    // 분석 + 액션 자동 생성
+    const fixedShare = total > 0 ? (totals.고정비 / total) * 100 : 0;
+    const varShare = total > 0 ? (totals.변동비 / total) * 100 : 0;
+    const semiShare = total > 0 ? (totals.준고정비 / total) * 100 : 0;
+    const prevFixedShare = prevTotal > 0 ? (prevTotals.고정비 / prevTotal) * 100 : 0;
+    const prevVarShare = prevTotal > 0 ? (prevTotals.변동비 / prevTotal) * 100 : 0;
+    const fixedShareDelta = fixedShare - prevFixedShare;
+    const varShareDelta = varShare - prevVarShare;
+
+    // 구조 특성
+    let characteristics;
+    if (fixedShare > 50) characteristics = `고정비 비중 ${fixedShare.toFixed(1)}%로 매우 높음 — 매출 변동에 취약한 구조`;
+    else if (varShare > 60) characteristics = `변동비 비중 ${varShare.toFixed(1)}% 중심 — 광고비·수수료 영향 큼, 매출 연동성 강함`;
+    else if (fixedShare > 35 && varShare > 40) characteristics = `고정비 ${fixedShare.toFixed(1)}% + 변동비 ${varShare.toFixed(1)}% 균형 구조`;
+    else if (varShare > 50) characteristics = `변동비 우위 (${varShare.toFixed(1)}%) — 매출 연동성 강함`;
+    else if (fixedShare > 40) characteristics = `고정비 우위 (${fixedShare.toFixed(1)}%) — 매출 안정성 확보 필요`;
+    else characteristics = `고정 ${fixedShare.toFixed(1)}% / 준고정 ${semiShare.toFixed(1)}% / 변동 ${varShare.toFixed(1)}%`;
+
+    // 변동 추이 (가장 크게 변화한 분류)
+    const yoyByCls = {
+      고정비: yoyNum(totals.고정비, prevTotals.고정비),
+      준고정비: yoyNum(totals.준고정비, prevTotals.준고정비),
+      변동비: yoyNum(totals.변동비, prevTotals.변동비),
+    };
+    let trend;
+    const bigChanges = Object.entries(yoyByCls).filter(([, v]) => v != null && (v > 115 || v < 85));
+    if (bigChanges.length > 0) {
+      const parts = bigChanges.map(([cls, v]) => `${cls} YoY ${Math.round(v)}%`).join(", ");
+      trend = `주요 변화: ${parts}`;
+    } else {
+      trend = "전년 대비 큰 분류 단위 변동 없음";
+    }
+
+    // 액션
+    let action;
+    if (varShare > 60 && yoyByCls.변동비 != null && yoyByCls.변동비 > 115) {
+      action = "변동비 급증 — 광고비 채널 효율·판매수수료 단가 우선 점검";
+    } else if (fixedShare > 45 && yoyByCls.고정비 != null && yoyByCls.고정비 > 110) {
+      action = "고정비 증가 부담 — 인건비·임차료 구조 재검토";
+    } else if (Math.abs(varShareDelta) > 5) {
+      action = `변동비 비중 ${varShareDelta >= 0 ? "+" : ""}${varShareDelta.toFixed(1)}%p 변화 — 구성비 변화 원인 분해 분석`;
+    } else if (Math.abs(fixedShareDelta) > 5) {
+      action = `고정비 비중 ${fixedShareDelta >= 0 ? "+" : ""}${fixedShareDelta.toFixed(1)}%p 변화 — 인력·임차 구조 변화 확인`;
+    } else if (varShare > 60) {
+      action = "변동비 중심 구조 — 광고 ROI 분기별 모니터링 권고";
+    } else if (fixedShare > 45) {
+      action = "고정비 부담 — 매출 안정 확보 또는 인력 효율화 추진";
+    } else {
+      action = "현 구조 안정적 — 분기별 모니터링 유지";
+    }
+
     for (const cls of ["고정비", "준고정비", "변동비"]) {
       const cur = totals[cls];
       const prv = prevTotals[cls];
       const share = total > 0 ? (cur / total) * 100 : 0;
       const yoy = yoyNum(cur, prv);
+      // 분석/액션은 첫 행(고정비)에만 포함, 나머지는 빈 값
+      const isFirst = cls === "고정비";
       lines.push([
         br === "법인" ? "법인전체" : br,
         cls,
@@ -1290,10 +1439,420 @@ function buildFixedVarAnalysis() {
         `${fmtK(prv)}K`,
         yoy != null ? `${Math.round(yoy)}%` : "-",
         `${share.toFixed(1)}%`,
+        isFirst ? characteristics : "",
+        isFirst ? trend : "",
+        isFirst ? action : "",
       ].join("|"));
     }
   }
   return sec("FIXED_VAR", lines.join("\n"));
+}
+
+// ────────────────────────────────────────────────
+// 상단 3카드 — TOP_SUMMARY (전체총평 / 주목 브랜드 / 변동 TOP 3)
+// ────────────────────────────────────────────────
+function buildTopSummary() {
+  const lines = [];
+  const corp = brandData["법인"].ytd;
+  const corpSales = corp.current.sales;
+  const corpSalesPrev = corp.previous?.sales ?? 0;
+  const corpCost = corp.current.cost;
+  const corpCostPrev = corp.previous?.cost ?? 0;
+  const corpRatio = calcCostRatio(corpCost, corpSales);
+  const corpRatioPrev = calcCostRatio(corpCostPrev, corpSalesPrev);
+  const overallDelta = corpRatio - corpRatioPrev;
+
+  // 분류별 영향도 — 어느 분류가 변화 주도?
+  const cats = corp.currCats;
+  const prevCats = corp.prevCats;
+  const classImpact = { 고정비: 0, 준고정비: 0, 변동비: 0 };
+  for (const lv1 of Object.keys(cats)) {
+    const cls = classifyCost(lv1);
+    if (!(cls in classImpact)) continue;
+    const r = calcCostRatio(cats[lv1] ?? 0, corpSales);
+    const rp = calcCostRatio(prevCats[lv1] ?? 0, corpSalesPrev);
+    classImpact[cls] += (r - rp);
+  }
+  const sortedImpact = Object.entries(classImpact).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const mainDriverCls = sortedImpact[0][0];
+  const mainDriverDelta = sortedImpact[0][1];
+
+  // 브랜드별 비용률 YoY (worst / best)
+  const brandDeltas = [];
+  for (const br of BRANDS) {
+    const bd = brandData[br].ytd;
+    const s = bd.current.sales, sp = bd.previous?.sales ?? 0;
+    const c = bd.current.cost, cp = bd.previous?.cost ?? 0;
+    if (s <= 0) continue;
+    const r = calcCostRatio(c, s);
+    const rp = calcCostRatio(cp, sp);
+    brandDeltas.push({ brand: br, delta: r - rp, ratio: r, prev: rp });
+  }
+  brandDeltas.sort((a, b) => b.delta - a.delta);
+  const worst = brandDeltas[0];
+  const best = brandDeltas[brandDeltas.length - 1];
+
+  // 변동 TOP 3 (브랜드×카테고리, 시점차 제외)
+  const variations = [];
+  for (const br of BRANDS_WITH_CORP) {
+    const bd = brandData[br].ytd;
+    const sales = bd.current.sales;
+    const salesPrev = bd.previous?.sales ?? 0;
+    for (const lv1 of Object.keys(bd.currCats)) {
+      if (SEASONAL_ITEMS.has(lv1)) continue;
+      if (lv1 === "인건비" && isRedPackTimingDiff(brandData[br])) continue;
+      const r = calcCostRatio(bd.currCats[lv1] ?? 0, sales);
+      const rp = calcCostRatio(bd.prevCats[lv1] ?? 0, salesPrev);
+      const delta = r - rp;
+      const amount = bd.currCats[lv1] ?? 0;
+      if (Math.abs(delta) < 0.3) continue;
+      variations.push({
+        brand: br === "법인" ? "법인전체" : br,
+        category: lv1,
+        delta,
+        amount,
+      });
+    }
+  }
+  variations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  const top3 = variations.slice(0, 3);
+
+  // 출력 포맷
+  // OVERALL|overallDeltaStr|verdict|mainDriverCls|mainDriverDeltaStr|worstBrand|worstDeltaStr
+  lines.push([
+    "OVERALL",
+    `${overallDelta >= 0 ? "+" : ""}${overallDelta.toFixed(2)}%p`,
+    overallDelta > 0.5 ? "전반적 악화" : overallDelta < -0.5 ? "전반적 개선" : "전년 동등",
+    mainDriverCls,
+    `${mainDriverDelta >= 0 ? "+" : ""}${mainDriverDelta.toFixed(2)}%p`,
+    worst.brand,
+    `${worst.delta >= 0 ? "+" : ""}${worst.delta.toFixed(2)}%p`,
+  ].join("|"));
+
+  // NOTABLE worst/best
+  if (worst) {
+    lines.push([
+      "NOTABLE_WORST",
+      worst.brand,
+      `${worst.ratio.toFixed(1)}%`,
+      `${worst.prev.toFixed(1)}%`,
+      `${worst.delta >= 0 ? "+" : ""}${worst.delta.toFixed(2)}%p`,
+    ].join("|"));
+  }
+  if (best && best.brand !== worst?.brand) {
+    lines.push([
+      "NOTABLE_BEST",
+      best.brand,
+      `${best.ratio.toFixed(1)}%`,
+      `${best.prev.toFixed(1)}%`,
+      `${best.delta >= 0 ? "+" : ""}${best.delta.toFixed(2)}%p`,
+    ].join("|"));
+  }
+
+  // TOP3 변동 원인
+  for (let i = 0; i < top3.length; i++) {
+    const v = top3[i];
+    lines.push([
+      `TOP${i + 1}`,
+      v.brand,
+      v.category,
+      `${v.delta >= 0 ? "+" : ""}${v.delta.toFixed(2)}%p`,
+      `${fmtK(v.amount)}K`,
+    ].join("|"));
+  }
+
+  return sec("TOP_SUMMARY", lines.join("\n"));
+}
+
+// ────────────────────────────────────────────────
+// ④ 브랜드별 한눈에 보기 (BRAND_OVERVIEW)
+// ────────────────────────────────────────────────
+function buildBrandOverview() {
+  const lines = [];
+  // 포맷: brand|sales|ratio|prevRatio|delta|labRatio|adRatio|maxChangeItem|signal
+  for (const br of BRANDS_WITH_CORP) {
+    const bd = brandData[br].ytd;
+    const s = bd.current.sales;
+    const sp = bd.previous?.sales ?? 0;
+    const c = bd.current.cost;
+    const cp = bd.previous?.cost ?? 0;
+    const ratio = calcCostRatio(c, s);
+    const ratioPrev = calcCostRatio(cp, sp);
+    const delta = ratio - ratioPrev;
+    const labRatio = calcCostRatio(bd.currCats["인건비"] ?? 0, s);
+    const adRatio = calcCostRatio(bd.currCats["광고비"] ?? 0, s);
+
+    // 최대 변동 항목 (시점차 제외)
+    let maxItem = null;
+    let maxAbs = 0;
+    for (const lv1 of Object.keys(bd.currCats)) {
+      if (SEASONAL_ITEMS.has(lv1)) continue;
+      if (lv1 === "인건비" && isRedPackTimingDiff(brandData[br])) continue;
+      const r = calcCostRatio(bd.currCats[lv1] ?? 0, s);
+      const rp = calcCostRatio(bd.prevCats[lv1] ?? 0, sp);
+      const d = r - rp;
+      if (Math.abs(d) > maxAbs) {
+        maxAbs = Math.abs(d);
+        maxItem = `${lv1} ${d >= 0 ? "+" : ""}${d.toFixed(2)}%p`;
+      }
+    }
+
+    // 신호: delta 기반
+    const signal = delta > 2 ? "🔴" : delta > 0.5 ? "🟡" : "🟢";
+
+    lines.push([
+      br === "법인" ? "법인전체" : br,
+      `${fmtK(s)}K`,
+      `${ratio.toFixed(2)}%`,
+      `${ratioPrev.toFixed(2)}%`,
+      `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%p`,
+      br === "공통" ? "—" : `${labRatio.toFixed(2)}%`,
+      br === "공통" ? "—" : `${adRatio.toFixed(2)}%`,
+      maxItem ?? "—",
+      signal,
+    ].join("|"));
+  }
+  return sec("BRAND_OVERVIEW", lines.join("\n"));
+}
+
+// lv2 항목별 특화 액션 매핑 (실제 데이터에 존재하는 lv2 이름만 사용)
+const UP_ACTION_BY_LV2 = {
+  // 지급수수료 lv2
+  "지급수수료|인테리어 개발": "신규/리뉴얼 매장 인테리어 비용 — 오픈 계획 및 시공 단가 검증",
+  "지급수수료|법무": "법무 자문 사례 검토, 사내 처리 가능 여부 평가",
+  "지급수수료|재무": "재무 자문 항목·필요성 재평가",
+  "지급수수료|Supply Chain": "SCM 비용 항목 점검, 단가 재협상 가능성",
+  "지급수수료|재고실사 서비스비용": "재고실사 빈도·서비스 단가 검토",
+  "지급수수료|매장 DP점검 외주용역": "매장 DP 점검 빈도·범위 재평가",
+  "지급수수료|보험비": "보험 항목별 한도·면책 조건 재검토",
+  "지급수수료|인사": "인사 서비스 범위·필요성 점검",
+  "지급수수료|Office Service": "사무 서비스 항목별 검토",
+  "지급수수료|리테일 교육 소프트웨어": "교육 SaaS 사용률·라이센스 수 재검토",
+  "지급수수료|골프 회원 연회비": "회원권 활용도·필요성 재검토",
+  // 인건비 lv2
+  "인건비|기본급": "직급 구성·단가 인상 영향 점검, 인당 기본급 추이 추적",
+  "인건비|성과급충당금": "성과 기대치 변화 시그널, 충당 정책 재확인",
+  "인건비|잡급": "임시·일용직 활용 추이 확인",
+  // 광고비 lv2 (MLB 채널)
+  "광고비|APP": "APP 퍼포먼스 ROI 검토, 채널 단가 추이",
+  "광고비|ACC": "ACC 채널 ROI·매출 기여도 분석",
+  "광고비|Branding": "브랜딩 캠페인 효과·도달 효율 평가",
+  "광고비|Retailing": "리테일 광고 매장 매출 기여도 추적",
+  "광고비|Products": "제품 광고 SKU별 효율 점검",
+  "광고비|Product": "제품 광고 SKU별 효율 점검",
+  "광고비|CRM": "CRM 데이터·세그멘트 활용도 점검",
+  "광고비|Campaign": "캠페인 ROI 측정 강화",
+  "광고비|CAMPAIGN": "캠페인 ROI 측정 강화",
+  // 임차료 lv2 (실재: 관리비, 사무실임차료)
+  "임차료|사무실임차료": "사무실 면적 효율·위치 재검토",
+  "임차료|관리비": "관리비 청구 내역·항목 재점검",
+  // 복리후생비 lv2
+  "복리후생비|식대": "급식 단가·인원 변동 영향 확인",
+  "복리후생비|건강검진": "검진 정책·빈도 재검토",
+  "복리후생비|5대보험": "5대보험 부담률·인원 변동 영향 확인",
+  "복리후생비|송년회": "송년회 규모·필요성 검토",
+  "복리후생비|장기근속": "장기근속 포상 정책 점검",
+  // 출장비 lv2 (실재: 국내출장비, 해외출장비)
+  "출장비|국내출장비": "국내 출장 빈도·교통수단 효율 점검",
+  "출장비|해외출장비": "해외 출장 사유·횟수 점검, 화상회의 대체 가능성",
+  // IT수수료 lv2 (실재 항목명)
+  "IT수수료|시스템 유지보수비용": "유지보수 계약 범위·단가 재검토",
+  "IT수수료|Snowflake": "Snowflake 사용량·계약 재협상 가능성",
+  "IT수수료|CN SAP": "SAP 유지·라이센스 재검토",
+  "IT수수료|Data Server": "데이터 서버 사용량·아키텍처 최적화",
+  "IT수수료|온라인플랫폼 서비스 비용": "플랫폼 사용료·필요성 재평가",
+  "IT수수료|온라인 스토어 오픈비용": "신규 스토어 오픈 일회성 여부 확인",
+  // 차량렌트비 lv2
+  "차량렌트비|ALPHA": "ALPHA 차량 사용 효율, 대체 옵션 검토",
+  "차량렌트비|KIA": "KIA 차량 사용 효율 점검",
+  "차량렌트비|차량유지비": "차량 유지비 항목·빈도 재검토",
+  // 세금과공과 (시점차 처리이지만 lv2 매핑)
+  "세금과공과|증치세 부가 지방세": "납부 시점 이연 가능성, 하반기 집중 납부 대비",
+  "세금과공과|인지세": "인지세 발생 사유 점검",
+  // 기타 lv2
+  "기타|교육비": "교육 프로그램 효과·참여율 점검",
+  "기타|물류비": "물류 단가·물량 변동 확인",
+  "기타|사무용품비": "구매 빈도·표준 단가 점검",
+  "기타|여비교통비": "교통비 정산 기준 재검토",
+  "기타|접대비": "접대비 정책·한도 점검",
+  "기타|통신비": "통신 요금제·회선 수 재검토",
+};
+
+// 카테고리 단위 폴백 액션 (lv2 매칭 안 될 때) — 데이터에 실재하는 표현만 사용
+const UP_ACTION_BY_CAT = {
+  "인건비": "인력 구성·기본급 단가 점검, 인당 인건비 추이 추적",
+  "광고비": "채널별 ROI 검토, 매출 기여도 분석",
+  "임차료": "계약 갱신 영향 확인, 단가 재협상 검토",
+  "감가상각비": "신규 자산 투자 내역 확인",
+  "복리후생비": "정책 변경·일회성 지출 여부 확인, 세부 항목 분해",
+  "IT수수료": "라이센스 사용량·계약 단가 재검토",
+  "출장비": "출장 계획 정비, 분기별 한도 설정",
+  "지급수수료": "최대 비중 lv2 항목 점검 후 단가·범위 재평가",
+  "차량렌트비": "차량 사용 효율, 대체 옵션 검토",
+  "수주회": "시즌 선집행 패턴 확인, 정상 여부 점검",
+  "세금과공과": "납부 시점 이연 가능성 확인, 하반기 집중 납부 대비",
+  "기타": "세부 항목 분해 후 원인 규명, 추세 모니터링",
+};
+
+const DOWN_ACTION_BY_LV2 = {
+  "지급수수료|인테리어 개발": "매장 오픈 지연·축소 영향 확인",
+  "지급수수료|법무": "법무 자문 감소 — 신규 분쟁 부재 여부 확인",
+  "지급수수료|Supply Chain": "SCM 비용 축소 — 운영 영향 확인",
+  "광고비|APP": "APP 축소가 매출 영향 여부 추적",
+  "광고비|ACC": "ACC 채널 ROI 검토 후 축소 적정성 평가",
+  "광고비|Branding": "브랜딩 비용 축소 — 브랜드 인지도 영향 확인",
+  "광고비|Retailing": "리테일 광고 축소 영향 모니터링",
+  "임차료|사무실임차료": "사무실 면적·계약 변경 영향 확인",
+  "임차료|관리비": "관리비 절감 사유 확인",
+  "출장비|해외출장비": "해외 출장 감소 — 사업 기회 손실 여부 확인",
+  "출장비|국내출장비": "국내 출장 감소 — 운영 차질 여부 확인",
+  "복리후생비|식대": "식대 변동 — 인원·정책 변화 확인",
+  "인건비|기본급": "기본급 감소 — 인력 변동 영향 확인",
+};
+
+const DOWN_ACTION_BY_CAT = {
+  "인건비": "효율화 지속 여부 확인, 인력 공백·이탈 리스크 점검",
+  "광고비": "절감이 매출 영향 미치는지 추적",
+  "임차료": "계약 갱신·면적 변경 영향 확인",
+  "감가상각비": "자산 폐기·신규 투자 지연 영향 확인",
+  "복리후생비": "정책 변경 여부, 단순 시점차 가능성 확인",
+  "IT수수료": "라이센스 재협상·계약 종료 영향 확인",
+  "출장비": "집행 지연 여부, 하반기 집중 발생 가능성",
+  "지급수수료": "최대 비중 lv2 항목 검토, 축소 영향 점검",
+  "차량렌트비": "차량 수 변경·정책 영향 확인",
+  "기타": "세부 항목 분해 후 효율화·일회성 여부 점검",
+};
+
+// 특정 브랜드·카테고리의 최대 lv2 항목 찾기 (②~⑤ 분석 항상 YTD 기준)
+function getTopLv2(brand, cat) {
+  const bu = bizUnitsFor(brand);
+  const lv2Sum = sumLv2(bu, year, month, "ytd", yearType, cat);
+  const entries = Object.entries(lv2Sum).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  if (entries.length === 0) return null;
+  return { name: entries[0][0], amount: entries[0][1] };
+}
+
+function buildDynamicAction(brand, cat, isUp) {
+  const top = getTopLv2(brand, cat);
+  if (top && top.name) {
+    const key = `${cat}|${top.name}`;
+    const dict = isUp ? UP_ACTION_BY_LV2 : DOWN_ACTION_BY_LV2;
+    if (dict[key]) {
+      return { action: dict[key], topLv2: top };
+    }
+  }
+  const fallback = (isUp ? UP_ACTION_BY_CAT : DOWN_ACTION_BY_CAT)[cat] ?? "원인 규명 및 추세 모니터링";
+  return { action: fallback, topLv2: top };
+}
+
+// ────────────────────────────────────────────────
+// ⑤ 변동 원인 분석 (CHANGE_DRIVERS) — 브랜드별 상승/하락 상위 항목
+// 매출 있는 브랜드: 비용률 변화(%p) 기준
+// 매출 없는 공통: 금액 YoY (%) 기준
+// ────────────────────────────────────────────────
+function buildChangeDrivers() {
+  const lines = [];
+  for (const br of BRANDS_WITH_CORP) {
+    const bd = brandData[br].ytd;
+    const s = bd.current.sales;
+    const sp = bd.previous?.sales ?? 0;
+    const c = bd.current.cost;
+    const cp = bd.previous?.cost ?? 0;
+    const useAmountBased = s <= 0; // 공통(지원조직): 매출 없음 → 금액 YoY 기준
+
+    let verdict, headerRatio, headerDelta;
+    if (useAmountBased) {
+      const costYoy = yoyNum(c, cp);
+      verdict = costYoy != null && costYoy > 110 ? "악화" : costYoy != null && costYoy < 90 ? "개선" : "유지";
+      headerRatio = `총비용 ${fmtK(c)}K (전년 ${fmtK(cp)}K)`;
+      headerDelta = costYoy != null ? `YoY ${Math.round(costYoy)}%` : "-";
+    } else {
+      const ratio = calcCostRatio(c, s);
+      const ratioPrev = calcCostRatio(cp, sp);
+      const delta = ratio - ratioPrev;
+      verdict = delta > 0.5 ? "악화" : delta < -0.5 ? "개선" : "유지";
+      headerRatio = `${ratio.toFixed(2)}%`;
+      headerDelta = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%p`;
+    }
+
+    lines.push([
+      "BRAND",
+      br === "법인" ? "법인전체" : br,
+      verdict,
+      headerRatio,
+      headerDelta,
+    ].join("|"));
+
+    const up = [], down = [];
+    for (const lv1 of Object.keys(bd.currCats)) {
+      if (SEASONAL_ITEMS.has(lv1)) continue;
+      if (lv1 === "인건비" && isRedPackTimingDiff(brandData[br])) continue;
+      const cur = bd.currCats[lv1] ?? 0;
+      const prv = bd.prevCats[lv1] ?? 0;
+
+      if (useAmountBased) {
+        // 공통: 금액 YoY 기준 — 변동률 분석
+        const yoy = yoyNum(cur, prv);
+        if (yoy == null) continue;
+        const yoyPct = yoy - 100; // +25%, -10% 등
+        if (Math.abs(yoyPct) < 5) continue; // ±5% 미만 변동 제외
+        const item = {
+          cat: lv1,
+          change: `${fmtK(prv)}K → ${fmtK(cur)}K`,
+          delta: `${yoyPct >= 0 ? "+" : ""}${Math.round(yoyPct)}%`,
+          amount: cur,
+          sortKey: Math.abs(yoyPct) + Math.log10(Math.abs(cur) + 1), // 변동률 + 금액 가중치
+        };
+        if (yoyPct > 0) up.push(item);
+        else down.push(item);
+      } else {
+        // 일반: 비용률 변화 기준
+        const r = calcCostRatio(cur, s);
+        const rp = calcCostRatio(prv, sp);
+        const d = r - rp;
+        if (Math.abs(d) < 0.2) continue;
+        const item = {
+          cat: lv1,
+          change: `${rp.toFixed(2)}%→${r.toFixed(2)}%`,
+          delta: `${d >= 0 ? "+" : ""}${d.toFixed(2)}%p`,
+          amount: cur,
+          sortKey: Math.abs(d),
+        };
+        if (d > 0) up.push(item);
+        else down.push(item);
+      }
+    }
+    up.sort((a, b) => b.sortKey - a.sortKey);
+    down.sort((a, b) => b.sortKey - a.sortKey);
+
+    for (const it of up.slice(0, 4)) {
+      const { action, topLv2 } = buildDynamicAction(br, it.cat, true);
+      const lv2Note = topLv2 ? ` (주요: ${topLv2.name} ${fmtK(topLv2.amount)}K)` : "";
+      lines.push([
+        "UP",
+        br === "법인" ? "법인전체" : br,
+        it.cat,
+        it.change,
+        it.delta,
+        `${fmtK(it.amount)}K${lv2Note}`,
+        action,
+      ].join("|"));
+    }
+    for (const it of down.slice(0, 3)) {
+      const { action, topLv2 } = buildDynamicAction(br, it.cat, false);
+      const lv2Note = topLv2 ? ` (주요: ${topLv2.name} ${fmtK(topLv2.amount)}K)` : "";
+      lines.push([
+        "DOWN",
+        br === "법인" ? "법인전체" : br,
+        it.cat,
+        it.change,
+        it.delta,
+        `${fmtK(it.amount)}K${lv2Note}`,
+        action,
+      ].join("|"));
+    }
+  }
+  return sec("CHANGE_DRIVERS", lines.join("\n"));
 }
 
 // ────────────────────────────────────────────────
@@ -1303,9 +1862,12 @@ const cs = buildCostStructure();
 const out = [
   buildMeta(),
   buildBullets(),
+  buildTopSummary(),
   buildKpi(),
   buildScoreCards(),
   buildCheckpoints(),
+  buildBrandOverview(),
+  buildChangeDrivers(),
   buildRiskTable(),
   buildYoyTable(),
   cs.text,
