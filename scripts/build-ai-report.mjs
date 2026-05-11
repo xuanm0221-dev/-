@@ -1227,6 +1227,10 @@ function buildCheckpoints() {
     const sales = bd.ytd.current.sales;
     const salesPrev = bd.ytd.previous?.sales ?? 0;
     const useAmountBased = sales <= 0; // 공통: 금액 YoY 기준
+    // 매출 급증 + 비용률 절대 높은 브랜드 (DISCOVERY 등): 비율 감소는 매출 효과
+    const salesYoy = salesPrev > 0 ? (sales / salesPrev) * 100 : null;
+    const totalRatio = sales > 0 ? calcCostRatio(bd.ytd.current.cost, sales) : 0;
+    const isSalesEffect = salesYoy != null && salesYoy > 130 && totalRatio > 30;
     const s = calcScore(br);
     lines.push(`BRAND_HEADER|${br === "법인" ? "법인전체" : br}|${s.grade}`);
 
@@ -1270,8 +1274,15 @@ function buildCheckpoints() {
         if (delta >= 3) { severity = "🔴 즉시"; note = "급증 원인 규명 및 절감 계획 수립 필요"; }
         else if (delta >= 1) { severity = "🟡 모니터링"; note = "추세 지속 여부 모니터링 필요"; }
         else if (delta >= 0.3) { severity = "📊 추적"; note = "소폭 상승, 추세 안정성 점검"; }
-        else if (delta <= -1) { severity = "✅ 개선"; note = "효율화 달성 — 지속 유지 확인 권고"; }
-        else if (delta <= -0.3) { severity = "🔵 절감"; note = "소폭 절감, 일회성 여부 점검"; }
+        else if (delta <= -1) {
+          // 매출 급증 브랜드의 비율 감소는 실효적 효율화 아님
+          if (isSalesEffect) { severity = "💧 매출효과"; note = `매출 급증(YoY ${salesYoy ? Math.round(salesYoy) + "%" : "-"})에 의한 비율 감소 — 실효적 절감 아님, 절대 금액 추적 필요`; }
+          else { severity = "✅ 개선"; note = "효율화 달성 — 지속 유지 확인 권고"; }
+        }
+        else if (delta <= -0.3) {
+          if (isSalesEffect) { severity = "💧 매출효과"; note = "매출 증가에 따른 비율 감소"; }
+          else { severity = "🔵 절감"; note = "소폭 절감, 일회성 여부 점검"; }
+        }
         else { severity = "▸ 안정"; note = "전년 대비 안정적 유지"; }
 
         change = `${rp.toFixed(2)}%→${r.toFixed(2)}%`;
@@ -1478,6 +1489,8 @@ function buildTopSummary() {
   const mainDriverDelta = sortedImpact[0][1];
 
   // 브랜드별 비용률 YoY (worst / best)
+  // 매출 급증(YoY >130%) + 비용률 절대값 30%↑ 브랜드는 best 후보에서 제외
+  // (매출 효과로 비율 떨어진 것일 뿐, 실효적 비용 효율 개선이 아님)
   const brandDeltas = [];
   for (const br of BRANDS) {
     const bd = brandData[br].ytd;
@@ -1486,18 +1499,25 @@ function buildTopSummary() {
     if (s <= 0) continue;
     const r = calcCostRatio(c, s);
     const rp = calcCostRatio(cp, sp);
-    brandDeltas.push({ brand: br, delta: r - rp, ratio: r, prev: rp });
+    const salesYoy = sp > 0 ? (s / sp) * 100 : null;
+    const isSalesEffect = salesYoy != null && salesYoy > 130 && r > 30; // 매출 급증 + 비용률 여전히 높음
+    brandDeltas.push({ brand: br, delta: r - rp, ratio: r, prev: rp, isSalesEffect });
   }
   brandDeltas.sort((a, b) => b.delta - a.delta);
   const worst = brandDeltas[0];
-  const best = brandDeltas[brandDeltas.length - 1];
+  // best는 매출 효과 브랜드 제외하고 선정
+  const bestCandidates = brandDeltas.filter((b) => !b.isSalesEffect);
+  const best = bestCandidates.length > 0 ? bestCandidates[bestCandidates.length - 1] : null;
 
   // 변동 TOP 3 (브랜드×카테고리, 시점차 제외)
+  // 매출 급증 브랜드의 비율 감소는 "매출 효과"로 라벨링
   const variations = [];
   for (const br of BRANDS_WITH_CORP) {
     const bd = brandData[br].ytd;
     const sales = bd.current.sales;
     const salesPrev = bd.previous?.sales ?? 0;
+    const salesYoy = salesPrev > 0 ? (sales / salesPrev) * 100 : null;
+    const isSalesEffect = salesYoy != null && salesYoy > 130;
     for (const lv1 of Object.keys(bd.currCats)) {
       if (SEASONAL_ITEMS.has(lv1)) continue;
       if (lv1 === "인건비" && isRedPackTimingDiff(brandData[br])) continue;
@@ -1506,6 +1526,8 @@ function buildTopSummary() {
       const delta = r - rp;
       const amount = bd.currCats[lv1] ?? 0;
       if (Math.abs(delta) < 0.3) continue;
+      // 매출 급증 브랜드의 비율 감소는 실효 절감 아님 → 제외
+      if (isSalesEffect && delta < 0) continue;
       variations.push({
         brand: br === "법인" ? "법인전체" : br,
         category: lv1,
@@ -1759,6 +1781,9 @@ function buildChangeDrivers() {
     const c = bd.current.cost;
     const cp = bd.previous?.cost ?? 0;
     const useAmountBased = s <= 0; // 공통(지원조직): 매출 없음 → 금액 YoY 기준
+    const salesYoy = sp > 0 ? (s / sp) * 100 : null;
+    const totalRatio = s > 0 ? calcCostRatio(c, s) : 0;
+    const isSalesEffect = !useAmountBased && salesYoy != null && salesYoy > 130 && totalRatio > 30;
 
     let verdict, headerRatio, headerDelta;
     if (useAmountBased) {
@@ -1766,6 +1791,14 @@ function buildChangeDrivers() {
       verdict = costYoy != null && costYoy > 110 ? "악화" : costYoy != null && costYoy < 90 ? "개선" : "유지";
       headerRatio = `총비용 ${fmtK(c)}K (전년 ${fmtK(cp)}K)`;
       headerDelta = costYoy != null ? `YoY ${Math.round(costYoy)}%` : "-";
+    } else if (isSalesEffect) {
+      // 매출 급증 + 비용률 높은 브랜드: 비율 변화는 매출 효과로 라벨링
+      const ratio = calcCostRatio(c, s);
+      const ratioPrev = calcCostRatio(cp, sp);
+      const delta = ratio - ratioPrev;
+      verdict = "매출효과";
+      headerRatio = `${ratio.toFixed(2)}%`;
+      headerDelta = `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%p (매출 YoY ${Math.round(salesYoy)}%)`;
     } else {
       const ratio = calcCostRatio(c, s);
       const ratioPrev = calcCostRatio(cp, sp);

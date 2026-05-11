@@ -653,7 +653,7 @@ function TopSummaryCards({ data }: { data: TopSummary }) {
         {data.overall && (
           <div className="text-[12px] leading-[1.65] text-slate-700">
             <div>
-              법인 평균 비용률 YoY <b className="text-slate-900">{data.overall.delta}</b> ·{" "}
+              법인 누적 비용률 (리테일매출 대비) YoY <b className="text-slate-900">{data.overall.delta}</b> ·{" "}
               <b style={{ color: verdictColor }}>{data.overall.verdict}</b>
             </div>
             <div className="mt-0.5">
@@ -1097,6 +1097,7 @@ function CheckpointsGrid({ groups }: { groups: CheckpointGroup[] }) {
     "🔵": { border: "#BAE6FD", bg: "#F0F9FF" },
     "▸": { border: "#E5E7EB", bg: "#FAFAFA" },
     "ℹ": { border: "#DDD6FE", bg: "#F5F3FF" },
+    "💧": { border: "#A5F3FC", bg: "#ECFEFF" },
   };
   return (
     <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
@@ -1271,6 +1272,7 @@ function ChangeDriversGrid({ groups }: { groups: ChangeDriverBrand[] }) {
   const cardBg = (verdict: string) => {
     if (verdict === "악화") return "bg-rose-50 border-rose-200";
     if (verdict === "개선") return "bg-emerald-50 border-emerald-200";
+    if (verdict === "매출효과") return "bg-cyan-50 border-cyan-200";
     return "bg-slate-50 border-slate-200";
   };
   return (
@@ -1286,7 +1288,7 @@ function ChangeDriversGrid({ groups }: { groups: ChangeDriverBrand[] }) {
             <div key={g.brand} className={`border rounded-lg p-3 mb-3 break-inside-avoid ${cardBg(g.verdict)}`}>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-[13.5px] font-bold text-slate-900">{g.brand}</span>
-                <span className="text-[15px]">{g.verdict === "악화" ? "🔴" : g.verdict === "개선" ? "🟢" : "🟡"}</span>
+                <span className="text-[15px]">{g.verdict === "악화" ? "🔴" : g.verdict === "개선" ? "🟢" : g.verdict === "매출효과" ? "💧" : "🟡"}</span>
                 <span className="ml-auto text-[11px] text-slate-600">
                   총비용률 <b className="text-slate-900 text-[12.5px]">{g.ratio}</b>{" "}
                   <b className={positive ? "text-rose-700" : "text-emerald-700"}>{g.delta}</b>
