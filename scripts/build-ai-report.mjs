@@ -67,8 +67,26 @@ function sumTotal(bizUnits, y, m, mo, yt) {
     return s + rows.filter((r) => r.month === mm).reduce((ms, r) => ms + (r.headcount || 0), 0);
   }, 0);
 
-  const salesBu = bizUnits.filter((b) => b !== "공통");
-  const salesRows = rows.filter((r) => salesBu.includes(r.biz_unit));
+  // 매출 합산 분모 규칙
+  // - 일반 브랜드/법인: 자기 매출만 (공통 제외)
+  // - 공통 단독 분석 시: 전체 브랜드 매출 합계를 분모로 (공통 비용률 = 공통비용 / 전체매출)
+  let salesBu = bizUnits.filter((b) => b !== "공통");
+  if (salesBu.length === 0) {
+    // 공통만 단독 분석 → 전체 브랜드 매출 합 사용
+    salesBu = ["MLB", "KIDS", "DISCOVERY"];
+  }
+  // 단, 행 필터링 시 같은 (year, month, year_type) 범위 내 다른 브랜드 매출 합산
+  let salesRows;
+  if (bizUnits.length === 1 && bizUnits[0] === "공통") {
+    // 전체 brand 데이터에서 동일 기간 매출 추출
+    salesRows = data.monthly_total.filter(
+      (r) => salesBu.includes(r.biz_unit) && r.year === y && (r.year_type || "actual") === yt
+    );
+    if (mo === "monthly") salesRows = salesRows.filter((r) => r.month === m);
+    else salesRows = salesRows.filter((r) => r.month <= m);
+  } else {
+    salesRows = rows.filter((r) => salesBu.includes(r.biz_unit));
+  }
   const salesRaw = salesRows.reduce((s, r) => s + (r.sales || 0), 0);
 
   return {
@@ -162,6 +180,54 @@ const SALARY_GUIDELINE_MAX = 110;
 
 // 시점차 항목 (RISK_TABLE 자동 분류 시 제외하거나 "—" 판정)
 const SEASONAL_ITEMS = new Set(["수주회", "Red pack", "세금과공과"]);
+
+// ────────────────────────────────────────────────
+// 비즈니스 컨텍스트 오버라이드 (자동 감지 불가능한 케이스)
+// 매월 새 케이스 생기면 이 배열에 추가만 하면 빌더 곳곳에 자동 적용
+// ────────────────────────────────────────────────
+const BUSINESS_OVERRIDES = [
+  {
+    brand: "KIDS",
+    category: "인건비",
+    year: 2026,
+    label: "🔀 인력재배치",
+    note: "KIDS 관리직 1인 MLB로 이동 — 단순 인력 재배치, 실효적 절감 아님",
+    relatedBrand: "MLB",
+    excludeFromTop3: true,
+    excludeFromBest: true,
+  },
+  {
+    brand: "MLB",
+    category: "인건비",
+    year: 2026,
+    label: "🔀 인력재배치",
+    note: "KIDS 관리직 1인 MLB로 이동분 포함 — 실효적 증가분과 인력 재배치 분리 필요",
+    relatedBrand: "KIDS",
+    excludeFromTop3: false,
+  },
+  {
+    brand: "DISCOVERY",
+    category: "인건비",
+    year: 2026,
+    label: "📈 성장단계",
+    note: "전년 중국 시장 진출 초기로 인원 적음, 당년 신규 입사 반영 — 인건비 증가는 성장 단계 정상",
+    excludeFromTop3: true,
+    excludeFromBest: false,
+  },
+  {
+    brand: "DISCOVERY",
+    category: "광고비",
+    year: 2026,
+    label: "📈 성장단계",
+    note: "전년 진출 초기 → 당년 매출 확대 단계, 광고비 절대 금액 증가는 정상 투자 — 비용률 감소는 매출 효과",
+    excludeFromTop3: true,
+    excludeFromBest: false,
+  },
+];
+
+function findOverride(brand, category) {
+  return BUSINESS_OVERRIDES.find((o) => o.year === year && o.brand === brand && o.category === category);
+}
 
 // 비용률 공식: 비용 × 1.13 / 리테일 매출 (매출 부가세 포함, 비용 미포함 → 가산)
 const VAT_FACTOR = 1.13;
@@ -389,6 +455,11 @@ function buildRiskTable() {
           verdict = "🟡";
           reasons.push(`Red pack 시점차 영향 가능, 계획비 ${Math.round(planRatio)}% 초과 점검 필요`);
         }
+      } else if (findOverride(brand, lv1)) {
+        // 비즈니스 오버라이드 (인력재배치 등) — RISK_TABLE에서는 별도 라벨 + 노트
+        const ov = findOverride(brand, lv1);
+        verdict = ov.label;
+        reasons.push(ov.note);
       } else {
         // 일반 카테고리 판정 (임계값 완화: 130% 이상 또는 70% 이하만 🔴)
         if (yoy != null && yoy >= 130 && (planRatio == null || planRatio > 110)) {
@@ -414,8 +485,16 @@ function buildRiskTable() {
         const planRatioStr = planRatio != null ? `${Math.round(planRatio)}%` : "-";
         const usageStr = usage != null ? `${usage.toFixed(1)}%` : "-";
         const annStr = annPlan != null ? `${fmtK(annPlan)}K` : "-";
+        // 브랜드별 지급수수료 등: 최대 lv2 항목 괄호 표시 (공통비용으로 오해 방지)
+        let lv1Display = lv1;
+        if (brand !== "공통" && brand !== "법인" && (lv1 === "지급수수료" || lv1 === "복리후생비" || lv1 === "IT수수료")) {
+          const top = getTopLv2(brand, lv1);
+          if (top && top.amount > 0) {
+            lv1Display = `${lv1} (${top.name})`;
+          }
+        }
         const detail = `YTD 실적 ${fmtK(curr)}K / 계획 ${planStr} (계획비 ${planRatioStr}) / 사용률 ${usageStr} / 연간계획 ${annStr} — ${reasons.join(", ")}`;
-        brandRows.push(`| ${lv1} | ${verdict} | ${detail} |`);
+        brandRows.push(`| ${lv1Display} | ${verdict} | ${detail} |`);
       }
     }
 
@@ -517,7 +596,10 @@ function buildYoyTable() {
       const prvRatio = calcCostRatio(p, sBrPrev);
       const yr = Math.round(yoy);
       const rpT = isRedPackTimingDiff(bdRaw);
-      const judge = rpT && yr < SALARY_GUIDELINE_MIN
+      const ov = findOverride(br, "인건비");
+      const judge = ov
+        ? `${ov.label} ${ov.note}`
+        : rpT && yr < SALARY_GUIDELINE_MIN
         ? "정상(Red pack 시점차) — YTD 누적 정상화 시 재판정"
         : yr < 80 ? "🔴 인건비 압축 — 성과급 또는 인원 변동 점검"
         : "🟡 인건비 급증 — 인원/단가 변동 점검";
@@ -543,10 +625,12 @@ function buildCostStructure() {
   const semiPrev = (prevCats["복리후생비"] ?? 0) + (prevCats["IT수수료"] ?? 0) + (prevCats["기타"] ?? 0) + (prevCats["차량렌트비"] ?? 0);
   const variablePrev = (prevCats["광고비"] ?? 0) + (prevCats["수주회"] ?? 0) + (prevCats["출장비"] ?? 0) + (prevCats["지급수수료"] ?? 0) + (prevCats["세금과공과"] ?? 0);
 
+  const totalPrev = fixedPrev + semiPrev + variablePrev;
   const lines = [
     `고정비|인건비+임차료+감가상각비|${fmtK(fixed)}K|${total > 0 ? ((fixed / total) * 100).toFixed(1) : "-"}%|YOY ${fmtYoy(fixed, fixedPrev)}`,
     `준고정비|복리후생비+IT수수료+기타+차량렌트비|${fmtK(semi)}K|${total > 0 ? ((semi / total) * 100).toFixed(1) : "-"}%|YOY ${fmtYoy(semi, semiPrev)}`,
     `변동비|광고비+수주회+출장비+지급수수료+세금과공과|${fmtK(variable)}K|${total > 0 ? ((variable / total) * 100).toFixed(1) : "-"}%|YOY ${fmtYoy(variable, variablePrev)}`,
+    `합계|법인 전체 YTD 총비용|${fmtK(total)}K|100.0%|YOY ${fmtYoy(total, totalPrev)}`,
   ];
   return { text: sec("COST_STRUCTURE", lines.join("\n")), fixed, semi, variable, total };
 }
@@ -1271,7 +1355,10 @@ function buildCheckpoints() {
         if (isLaborTiming) continue;
         if (Math.abs(delta) < 0.05) continue;
 
-        if (delta >= 3) { severity = "🔴 즉시"; note = "급증 원인 규명 및 절감 계획 수립 필요"; }
+        // 비즈니스 오버라이드 (인력재배치 등) 우선 적용
+        const ov = findOverride(br, cat);
+        if (ov) { severity = ov.label; note = ov.note; }
+        else if (delta >= 3) { severity = "🔴 즉시"; note = "급증 원인 규명 및 절감 계획 수립 필요"; }
         else if (delta >= 1) { severity = "🟡 모니터링"; note = "추세 지속 여부 모니터링 필요"; }
         else if (delta >= 0.3) { severity = "📊 추적"; note = "소폭 상승, 추세 안정성 점검"; }
         else if (delta <= -1) {
@@ -1293,6 +1380,37 @@ function buildCheckpoints() {
     }
     items.sort((a, b) => b.sortKey - a.sortKey);
     const visible = items.slice(0, 4);
+
+    // Fallback: 의미 있는 변동 없으면 "양호" 현황 카드 표시
+    if (visible.length === 0) {
+      if (useAmountBased) {
+        // 공통: 금액 YoY 기반 현황
+        const costYoy = yoyNum(bd.ytd.current.cost, bd.ytd.previous?.cost ?? 0);
+        const yoyStr = costYoy != null ? `${costYoy >= 100 ? "+" : ""}${Math.round(costYoy - 100)}%` : "-";
+        visible.push({
+          cat: "비용 현황",
+          severity: "▸ 양호",
+          change: `${fmtK(bd.ytd.previous?.cost ?? 0)}K → ${fmtK(bd.ytd.current.cost)}K`,
+          delta: yoyStr,
+          amount: bd.ytd.current.cost,
+          note: "전년 대비 카테고리 단위 큰 변동 없음 — 현 추세 양호, 분기별 모니터링 권고",
+        });
+      } else {
+        // 일반 브랜드: 비용률 현황
+        const ratio = calcCostRatio(bd.ytd.current.cost, sales);
+        const ratioPrev = calcCostRatio(bd.ytd.previous?.cost ?? 0, salesPrev);
+        const overallDelta = ratio - ratioPrev;
+        visible.push({
+          cat: "비용률 현황",
+          severity: "▸ 양호",
+          change: `${ratioPrev.toFixed(2)}%→${ratio.toFixed(2)}%`,
+          delta: `${overallDelta >= 0 ? "+" : ""}${overallDelta.toFixed(2)}%p`,
+          amount: bd.ytd.current.cost,
+          note: "카테고리 단위 의미 있는 변동 없음 — 비용 구조 안정적, 현 추세 유지 권고",
+        });
+      }
+    }
+
     for (const it of visible) {
       lines.push([
         "ITEM", br === "법인" ? "법인전체" : br, it.severity, it.cat,
@@ -1489,8 +1607,9 @@ function buildTopSummary() {
   const mainDriverDelta = sortedImpact[0][1];
 
   // 브랜드별 비용률 YoY (worst / best)
-  // 매출 급증(YoY >130%) + 비용률 절대값 30%↑ 브랜드는 best 후보에서 제외
-  // (매출 효과로 비율 떨어진 것일 뿐, 실효적 비용 효율 개선이 아님)
+  // 다음 케이스는 best 후보에서 제외:
+  //   - 매출 급증(YoY >130%) + 비용률 절대값 30%↑ (매출 효과)
+  //   - BUSINESS_OVERRIDES의 excludeFromBest 케이스 (인력재배치 등)
   const brandDeltas = [];
   for (const br of BRANDS) {
     const bd = brandData[br].ytd;
@@ -1500,17 +1619,22 @@ function buildTopSummary() {
     const r = calcCostRatio(c, s);
     const rp = calcCostRatio(cp, sp);
     const salesYoy = sp > 0 ? (s / sp) * 100 : null;
-    const isSalesEffect = salesYoy != null && salesYoy > 130 && r > 30; // 매출 급증 + 비용률 여전히 높음
-    brandDeltas.push({ brand: br, delta: r - rp, ratio: r, prev: rp, isSalesEffect });
+    const isSalesEffect = salesYoy != null && salesYoy > 130 && r > 30;
+    // 인력재배치 등 비즈니스 오버라이드: 해당 브랜드의 인건비가 excludeFromBest이면 부정확
+    const hasBestExcludingOverride = BUSINESS_OVERRIDES.some(
+      (o) => o.year === year && o.brand === br && o.excludeFromBest
+    );
+    brandDeltas.push({ brand: br, delta: r - rp, ratio: r, prev: rp, isSalesEffect, hasBestExcludingOverride });
   }
   brandDeltas.sort((a, b) => b.delta - a.delta);
   const worst = brandDeltas[0];
-  // best는 매출 효과 브랜드 제외하고 선정
-  const bestCandidates = brandDeltas.filter((b) => !b.isSalesEffect);
+  // best는 매출 효과 / 인력재배치 브랜드 제외하고 선정
+  const bestCandidates = brandDeltas.filter((b) => !b.isSalesEffect && !b.hasBestExcludingOverride);
   const best = bestCandidates.length > 0 ? bestCandidates[bestCandidates.length - 1] : null;
 
   // 변동 TOP 3 (브랜드×카테고리, 시점차 제외)
-  // 매출 급증 브랜드의 비율 감소는 "매출 효과"로 라벨링
+  // 우선순위: 일반 변동(라벨없음) > 매출효과 > 인력재배치 등 오버라이드
+  // 일반 변동만으로 3개가 안 차면 라벨링한 항목으로 자동 fallback
   const variations = [];
   for (const br of BRANDS_WITH_CORP) {
     const bd = brandData[br].ytd;
@@ -1525,18 +1649,28 @@ function buildTopSummary() {
       const rp = calcCostRatio(bd.prevCats[lv1] ?? 0, salesPrev);
       const delta = r - rp;
       const amount = bd.currCats[lv1] ?? 0;
-      if (Math.abs(delta) < 0.3) continue;
-      // 매출 급증 브랜드의 비율 감소는 실효 절감 아님 → 제외
-      if (isSalesEffect && delta < 0) continue;
+      if (Math.abs(delta) < 0.1) continue; // 매우 작은 변동만 제외 (0.3 → 0.1)
+      const ov = findOverride(br, lv1);
+      const isSalesEff = isSalesEffect && delta < 0;
+      let label = "";
+      let priority = 0; // 0 = 일반 (최우선), 1 = 매출효과, 2 = 오버라이드
+      if (ov?.excludeFromTop3) { label = ov.label; priority = 2; }
+      else if (isSalesEff) { label = "💧 매출효과"; priority = 1; }
       variations.push({
         brand: br === "법인" ? "법인전체" : br,
         category: lv1,
         delta,
         amount,
+        label,
+        priority,
       });
     }
   }
-  variations.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+  // 정렬: priority 낮은 것 우선(일반 변동 먼저), 동일 priority 내에선 |delta| 큰 순
+  variations.sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return Math.abs(b.delta) - Math.abs(a.delta);
+  });
   const top3 = variations.slice(0, 3);
 
   // 출력 포맷
@@ -1571,13 +1705,14 @@ function buildTopSummary() {
     ].join("|"));
   }
 
-  // TOP3 변동 원인
+  // TOP3 변동 원인 (라벨 있는 경우 카테고리 앞에 prefix)
   for (let i = 0; i < top3.length; i++) {
     const v = top3[i];
+    const catWithLabel = v.label ? `${v.label} ${v.category}` : v.category;
     lines.push([
       `TOP${i + 1}`,
       v.brand,
-      v.category,
+      catWithLabel,
       `${v.delta >= 0 ? "+" : ""}${v.delta.toFixed(2)}%p`,
       `${fmtK(v.amount)}K`,
     ].join("|"));
@@ -1604,18 +1739,21 @@ function buildBrandOverview() {
     const labRatio = calcCostRatio(bd.currCats["인건비"] ?? 0, s);
     const adRatio = calcCostRatio(bd.currCats["광고비"] ?? 0, s);
 
-    // 최대 변동 항목 (시점차 제외)
+    // 최대 변동 항목 (시점차 + 비즈니스 오버라이드 제외)
     let maxItem = null;
     let maxAbs = 0;
     for (const lv1 of Object.keys(bd.currCats)) {
       if (SEASONAL_ITEMS.has(lv1)) continue;
       if (lv1 === "인건비" && isRedPackTimingDiff(brandData[br])) continue;
+      // 비즈니스 오버라이드 항목: 최대 변동 표시 시 라벨 함께 표기
+      const ovItem = findOverride(br, lv1);
       const r = calcCostRatio(bd.currCats[lv1] ?? 0, s);
       const rp = calcCostRatio(bd.prevCats[lv1] ?? 0, sp);
       const d = r - rp;
       if (Math.abs(d) > maxAbs) {
         maxAbs = Math.abs(d);
-        maxItem = `${lv1} ${d >= 0 ? "+" : ""}${d.toFixed(2)}%p`;
+        const labelPrefix = ovItem ? `${ovItem.label} ` : "";
+        maxItem = `${labelPrefix}${lv1} ${d >= 0 ? "+" : ""}${d.toFixed(2)}%p`;
       }
     }
 
@@ -1628,7 +1766,8 @@ function buildBrandOverview() {
       `${ratio.toFixed(2)}%`,
       `${ratioPrev.toFixed(2)}%`,
       `${delta >= 0 ? "+" : ""}${delta.toFixed(2)}%p`,
-      br === "공통" ? "—" : `${labRatio.toFixed(2)}%`,
+      // 공통: 인건비는 있으니 표시, 광고비는 없으므로 "—"
+      `${labRatio.toFixed(2)}%`,
       br === "공통" ? "—" : `${adRatio.toFixed(2)}%`,
       maxItem ?? "—",
       signal,
@@ -1859,7 +1998,9 @@ function buildChangeDrivers() {
     down.sort((a, b) => b.sortKey - a.sortKey);
 
     for (const it of up.slice(0, 4)) {
+      const ov = findOverride(br, it.cat);
       const { action, topLv2 } = buildDynamicAction(br, it.cat, true);
+      const finalAction = ov ? `${ov.label} ${ov.note}` : action;
       const lv2Note = topLv2 ? ` (주요: ${topLv2.name} ${fmtK(topLv2.amount)}K)` : "";
       lines.push([
         "UP",
@@ -1868,11 +2009,13 @@ function buildChangeDrivers() {
         it.change,
         it.delta,
         `${fmtK(it.amount)}K${lv2Note}`,
-        action,
+        finalAction,
       ].join("|"));
     }
     for (const it of down.slice(0, 3)) {
+      const ov = findOverride(br, it.cat);
       const { action, topLv2 } = buildDynamicAction(br, it.cat, false);
+      const finalAction = ov ? `${ov.label} ${ov.note}` : action;
       const lv2Note = topLv2 ? ` (주요: ${topLv2.name} ${fmtK(topLv2.amount)}K)` : "";
       lines.push([
         "DOWN",
@@ -1881,7 +2024,7 @@ function buildChangeDrivers() {
         it.change,
         it.delta,
         `${fmtK(it.amount)}K${lv2Note}`,
-        action,
+        finalAction,
       ].join("|"));
     }
   }

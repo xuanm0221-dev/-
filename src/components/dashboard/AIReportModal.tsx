@@ -164,7 +164,7 @@ function parseKpi(s: string): KpiItem[] {
     });
 }
 
-const COST_ROW_TYPES = ["고정비", "준고정비", "변동비"];
+const COST_ROW_TYPES = ["고정비", "준고정비", "변동비", "합계"];
 
 function parseCostRows(s: string): CostRow[] {
   return s
@@ -486,6 +486,17 @@ const mdTableComponents = {
         </td>
       );
     }
+    // RISK_TABLE 카테고리 셀: "지급수수료 (인테리어 개발)" 등 → (lv2) 연한 회색 처리
+    // 공통비용 오해 방지 라벨
+    const lv2Match = isPlain && text.match(/^(지급수수료|복리후생비|IT수수료)\s*\(([^)]+)\)$/);
+    if (lv2Match) {
+      return (
+        <td {...props}>
+          <span>{lv2Match[1]}</span>
+          <span className="ml-1 text-[10.5px] text-slate-400 font-normal">({lv2Match[2]})</span>
+        </td>
+      );
+    }
     // 기본 렌더
     let cls = "";
     if (/개선/.test(text)) cls += " text-emerald-700 font-semibold";
@@ -649,7 +660,7 @@ function TopSummaryCards({ data }: { data: TopSummary }) {
     <div className="mb-3 grid grid-cols-1 lg:grid-cols-3 gap-2.5">
       {/* 전체 총평 */}
       <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
-        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📊 전체 총평 · 해석</div>
+        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📊 YTD 전체 총평 · 해석</div>
         {data.overall && (
           <div className="text-[12px] leading-[1.65] text-slate-700">
             <div>
@@ -671,7 +682,7 @@ function TopSummaryCards({ data }: { data: TopSummary }) {
       </div>
       {/* 주목 브랜드 */}
       <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
-        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">🔍 주목 브랜드 · 동인</div>
+        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">🔍 YTD 주목 브랜드 · 동인</div>
         <div className="space-y-1.5">
           {data.notableWorst && (
             <div className="bg-rose-50 border-l-2 border-rose-600 rounded-r px-2 py-1.5">
@@ -697,7 +708,7 @@ function TopSummaryCards({ data }: { data: TopSummary }) {
       </div>
       {/* TOP 3 */}
       <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
-        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📌 주요 비용 변동 원인 TOP 3</div>
+        <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📌 YTD 주요 비용 변동 원인 TOP 3</div>
         <div className="text-[12px] leading-[1.7] space-y-0.5">
           {data.top3.map((t, i) => {
             const positive = t.delta.startsWith("+");
@@ -928,6 +939,7 @@ const COST_TYPE_STYLES: Record<string, string> = {
   고정비:   "bg-blue-50/70 text-blue-700 font-semibold rounded-md",
   준고정비: "bg-amber-50/70 text-amber-700 font-semibold rounded-md",
   변동비:   "bg-emerald-50/70 text-emerald-700 font-semibold rounded-md",
+  합계:     "bg-slate-100 text-slate-900 font-bold rounded-md",
 };
 
 function CostStructureSection({
@@ -944,7 +956,7 @@ function CostStructureSection({
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
           <span className="inline-block w-1 h-3.5 bg-emerald-500 rounded-sm" />
           <span className="text-[12.5px] font-semibold text-slate-800">
-            비용 구조 (고정 / 준고정 / 변동)
+            YTD 비용 구조 (고정 / 준고정 / 변동)
           </span>
         </div>
         <div className="p-4 overflow-x-auto">
@@ -966,39 +978,87 @@ function CostStructureSection({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="hover:bg-slate-50/60">
-                  <td className={`px-3 py-2.5 text-center border-b border-slate-100 ${COST_TYPE_STYLES[r.type] ?? ""}`}>
-                    {r.type}
-                  </td>
-                  <td className="px-3 py-2.5 text-slate-600 border-b border-slate-100">
-                    {r.items}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-medium text-slate-800 whitespace-nowrap border-b border-slate-100">
-                    {r.amount}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-slate-700 whitespace-nowrap border-b border-slate-100">
-                    {r.ratio}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-slate-700 whitespace-nowrap border-b border-slate-100">
-                    {r.yoy}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r, i) => {
+                const isTotal = r.type === "합계";
+                const cellCls = isTotal
+                  ? "px-3 py-2.5 border-t-2 border-slate-300 border-b border-slate-100 bg-slate-50/40"
+                  : "px-3 py-2.5 border-b border-slate-100";
+                return (
+                  <tr key={i} className={isTotal ? "" : "hover:bg-slate-50/60"}>
+                    <td className={`${cellCls} text-center ${COST_TYPE_STYLES[r.type] ?? ""}`}>
+                      {r.type}
+                    </td>
+                    <td className={`${cellCls} ${isTotal ? "text-slate-700 font-semibold" : "text-slate-600"}`}>
+                      {r.items}
+                    </td>
+                    <td className={`${cellCls} text-right whitespace-nowrap ${isTotal ? "text-slate-900 font-bold" : "text-slate-800 font-medium"}`}>
+                      {r.amount}
+                    </td>
+                    <td className={`${cellCls} text-right whitespace-nowrap ${isTotal ? "text-slate-900 font-bold" : "text-slate-700"}`}>
+                      {r.ratio}
+                    </td>
+                    <td className={`${cellCls} text-right whitespace-nowrap ${isTotal ? "text-slate-900 font-bold" : "text-slate-700"}`}>
+                      {r.yoy}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <p className="text-[10.5px] text-slate-400 mt-2.5">※ YTD 법인 전체 기준</p>
         </div>
       </div>
-      {insight && (
-        <div className="border border-slate-200 rounded-2xl bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-2.5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-            <span className="inline-block w-1 h-3.5 bg-indigo-500 rounded-sm" />
-            <span className="text-[13px] font-semibold text-slate-800">비용 구조 인사이트</span>
+      {insight && <CostStructureInsightCard insight={insight} />}
+    </div>
+  );
+}
+
+// 비용 구조 인사이트 — 핵심 수치 강조 카드
+function CostStructureInsightCard({ insight }: { insight: string }) {
+  // 빌더 출력 패턴: "▶ YTD 총비용의 X%를 광고비·수주회 중심 변동비가 차지하며, 광고비 단독으로 전체 비용의 Y% 점유 — 결론"
+  const cleaned = insight.replace(/^▶\s*/, "").trim();
+  const dashIdx = cleaned.indexOf(" — ");
+  const main = dashIdx >= 0 ? cleaned.slice(0, dashIdx) : cleaned;
+  const conclusion = dashIdx >= 0 ? cleaned.slice(dashIdx + 3).trim() : "";
+  const pcts = main.match(/\d+(?:\.\d+)?%/g) ?? [];
+  const varShare = pcts[0];
+  const adShare = pcts[1];
+  const isStructured = !!(varShare && adShare && conclusion);
+
+  return (
+    <div className="border border-indigo-200 rounded-2xl bg-white shadow-sm overflow-hidden">
+      <div className="px-5 py-2.5 border-b border-indigo-100 bg-gradient-to-r from-indigo-50 to-slate-50 flex items-center gap-2">
+        <span className="inline-block w-1 h-3.5 bg-indigo-500 rounded-sm" />
+        <span className="text-[13px] font-semibold text-indigo-900">비용 구조 인사이트</span>
+      </div>
+      {isStructured ? (
+        <div className="px-4 py-3.5 space-y-3">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-lg border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-3 py-2.5">
+              <div className="text-[10px] font-semibold text-emerald-700 tracking-wide uppercase">변동비 점유</div>
+              <div className="mt-0.5 text-[22px] font-bold leading-tight text-emerald-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {varShare}
+              </div>
+              <div className="text-[10.5px] text-slate-500 mt-0.5">광고비·수주회 중심</div>
+            </div>
+            <div className="rounded-lg border border-rose-200 bg-gradient-to-br from-rose-50 to-white px-3 py-2.5">
+              <div className="text-[10px] font-semibold text-rose-700 tracking-wide uppercase">광고비 단독</div>
+              <div className="mt-0.5 text-[22px] font-bold leading-tight text-rose-700" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {adShare}
+              </div>
+              <div className="text-[10.5px] text-slate-500 mt-0.5">전체 비용 점유율</div>
+            </div>
           </div>
-          <div className="px-5 py-3.5 text-[13.5px] leading-[1.55] text-slate-700">
-            {highlightInsight(insight)}
+          <div className="rounded-md border-l-4 border-indigo-500 bg-indigo-50/60 px-3 py-2">
+            <div className="text-[9.5px] font-bold tracking-wider text-indigo-600 uppercase mb-0.5">📌 핵심 결론</div>
+            <div className="text-[13px] font-semibold text-slate-800 leading-[1.5]">
+              {highlightInsight(conclusion)}
+            </div>
           </div>
+        </div>
+      ) : (
+        <div className="px-5 py-3.5 text-[13.5px] leading-[1.55] text-slate-700">
+          {highlightInsight(insight)}
         </div>
       )}
     </div>
@@ -1023,7 +1083,7 @@ function ScoreCardsGrid({ scoreCards }: { scoreCards: ScoreCard[] }) {
   return (
     <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
       <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
-        ② 브랜드별 비용 효율 종합 스코어
+        ② 브랜드별 YTD 비용 효율 종합 스코어
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
         {scoreCards.map((s) => {
@@ -1098,11 +1158,13 @@ function CheckpointsGrid({ groups }: { groups: CheckpointGroup[] }) {
     "▸": { border: "#E5E7EB", bg: "#FAFAFA" },
     "ℹ": { border: "#DDD6FE", bg: "#F5F3FF" },
     "💧": { border: "#A5F3FC", bg: "#ECFEFF" },
+    "🔀": { border: "#FDE68A", bg: "#FFFBEB" },
+    "📈": { border: "#C7D2FE", bg: "#EEF2FF" },
   };
   return (
     <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
       <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
-        ③ 브랜드별 체크포인트 — 지금 바로 확인해야 할 것
+        ③ 브랜드별 YTD 체크포인트 — 지금 바로 확인해야 할 것
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
         {groups.map((g) => {
@@ -1157,7 +1219,7 @@ function FixedVarTable({ rows }: { rows: FixedVarRow[] }) {
   return (
     <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
       <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
-        ⑦ 브랜드별 비용 구조 (고정 / 준고정 / 변동)
+        ⑦ 브랜드별 YTD 비용 구조 (고정 / 준고정 / 변동)
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
@@ -1225,7 +1287,7 @@ function BrandOverviewTable({ rows }: { rows: BrandOverviewRow[] }) {
   return (
     <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
       <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
-        ④ 브랜드별 비용 현황 한눈에 보기
+        ④ 브랜드별 YTD 비용 현황 한눈에 보기
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-[12px]" style={{ borderCollapse: "collapse", fontVariantNumeric: "tabular-nums" }}>
@@ -1278,7 +1340,7 @@ function ChangeDriversGrid({ groups }: { groups: ChangeDriverBrand[] }) {
   return (
     <div className="mb-3 rounded-xl border border-[#E5E7EB] bg-white px-4 py-3">
       <div className="text-[13px] font-bold text-[#1E3A5F] border-l-[3px] border-[#6366F1] pl-2 mb-2.5">
-        ⑤ 비용 변동 원인 분석 — 왜 늘었나 / 왜 줄었나
+        ⑤ YTD 비용 변동 원인 분석 — 왜 늘었나 / 왜 줄었나
       </div>
       {/* CSS columns 레이아웃 — 카드 자연 높이 + 열별 패킹 (공백 최소화) */}
       <div className="columns-1 lg:columns-2 gap-3 [column-fill:balance]">
@@ -1377,13 +1439,15 @@ function DetailedSections({ markdown }: { markdown: string }) {
   const parts = markdown.split(/(?=^## )/m).filter(Boolean);
 
   // ── 컬럼 그룹 배경 헬퍼 ──────────────────────────────
-  const getGroupBg = (idx: number, isHeaderRow: boolean): React.CSSProperties => {
+  // level1: 그룹별 컬러 / level2(들여쓰기): 흰색 — 단, 그룹 경계선(borderLeft)은 유지
+  const getGroupBg = (idx: number, isHeaderRow: boolean, isLevel2 = false): React.CSSProperties => {
     const BL = "2px solid #D1D5DB";
     if (idx === 0)               return {};
-    if (idx >= 1 && idx <= 3)   return { background: isHeaderRow ? "#DBEAFE" : "#EFF6FF", ...(idx === 1 ? { borderLeft: BL } : {}) };
-    if (idx >= 4 && idx <= 6)   return { background: isHeaderRow ? "#DCFCE7" : "#F0FDF4", ...(idx === 4 ? { borderLeft: BL } : {}) };
-    if (idx >= 7 && idx <= 10)  return { background: isHeaderRow ? "#FEF9C3" : "#FEFCE8", ...(idx === 7 ? { borderLeft: BL } : {}) };
-    /* idx === 11 */             return { background: isHeaderRow ? "#F3F4F6" : "#F9FAFB", borderLeft: BL };
+    const bg = (lv1: string) => (isLevel2 ? "#FFFFFF" : lv1);
+    if (idx >= 1 && idx <= 3)   return { background: bg(isHeaderRow ? "#DBEAFE" : "#EFF6FF"), ...(idx === 1 ? { borderLeft: BL } : {}) };
+    if (idx >= 4 && idx <= 6)   return { background: bg(isHeaderRow ? "#DCFCE7" : "#F0FDF4"), ...(idx === 4 ? { borderLeft: BL } : {}) };
+    if (idx >= 7 && idx <= 10)  return { background: bg(isHeaderRow ? "#FEF9C3" : "#FEFCE8"), ...(idx === 7 ? { borderLeft: BL } : {}) };
+    /* idx === 11 */             return { background: bg(isHeaderRow ? "#F3F4F6" : "#F9FAFB"), borderLeft: BL };
   };
 
   // YOY 수치 색상 (순수 %숫자 패턴)
@@ -1434,6 +1498,7 @@ function DetailedSections({ markdown }: { markdown: string }) {
       );
     },
     // tbody tr: 그룹 배경을 각 셀에 cloneElement로 주입
+    // level2(들여쓰기 행)는 흰 배경 — 첫 셀이 U+3000(전각공백)으로 시작하면 level2로 판정
     tr: ({ children, ...props }: React.HTMLAttributes<HTMLTableRowElement>) => {
       const cells = React.Children.toArray(children);
       const firstCell = cells[0];
@@ -1443,17 +1508,21 @@ function DetailedSections({ markdown }: { markdown: string }) {
           (c) => React.isValidElement(c) && (c.type === "strong" || (c as React.ReactElement).type?.toString?.() === "strong")
         );
       const isThRow = cells.some((c) => React.isValidElement(c) && (c as React.ReactElement).type === "th");
+      const firstCellRaw = React.isValidElement(firstCell)
+        ? extractCellText((firstCell as React.ReactElement<{ children?: React.ReactNode }>).props.children)
+        : "";
+      const isLevel2 = firstCellRaw.startsWith("　");
       const styledCells = isBrandHeader
         ? cells
         : cells.map((cell, idx) => {
             if (!React.isValidElement(cell)) return cell;
             const existing = ((cell as React.ReactElement).props as { style?: React.CSSProperties }).style ?? {};
             return React.cloneElement(cell as React.ReactElement, {
-              style: { ...getGroupBg(idx, isThRow), ...existing },
+              style: { ...getGroupBg(idx, isThRow, isLevel2), ...existing },
             });
           });
       return (
-        <tr className={isBrandHeader ? "brand-header" : "hover:bg-gray-50"} {...props}>
+        <tr className={isBrandHeader ? "brand-header" : isLevel2 ? "hover:bg-slate-50/60" : "hover:bg-gray-50"} {...props}>
           {styledCells}
         </tr>
       );
@@ -1569,6 +1638,7 @@ function DetailedSections({ markdown }: { markdown: string }) {
         const body = lines.slice(1).join("\n").trim();
         // 이모지 + 제목 추출
         const titleText = titleLine.replace(/^##\s*/, "");
+        const isOpGuide = /연간\s*예산\s*운영\s*관리/.test(titleText);
 
         return (
           <div
@@ -1582,16 +1652,63 @@ function DetailedSections({ markdown }: { markdown: string }) {
             </div>
             {/* 섹션 본문 */}
             <div className="px-5 py-3.5">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={detailMdComponents as never}
-              >
-                {body}
-              </ReactMarkdown>
+              {isOpGuide ? (
+                <OperationGuideGrid body={body} />
+              ) : (
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={detailMdComponents as never}
+                >
+                  {body}
+                </ReactMarkdown>
+              )}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ③ 연간 예산 운영 관리 기준 — 액션 카드 그리드 (가독성 강화)
+function OperationGuideGrid({ body }: { body: string }) {
+  // 빌더 출력 패턴: 각 항목은 "**A. 제목**\n- 본문" 형태로 이어짐
+  const items: { letter: string; title: string; data: string; action: string }[] = [];
+  const blocks = body.split(/\n(?=\*\*[A-Z]\.\s)/);
+  for (const block of blocks) {
+    const m = block.match(/^\*\*([A-Z])\.\s*([^*]+?)\*\*\s*\n-\s*([\s\S]+?)\s*$/);
+    if (!m) continue;
+    const letter = m[1];
+    const title = m[2].trim();
+    const raw = m[3].replace(/\s+/g, " ").trim();
+    const dashIdx = raw.indexOf(" — ");
+    const data = dashIdx >= 0 ? raw.slice(0, dashIdx).trim() : raw;
+    const action = dashIdx >= 0 ? raw.slice(dashIdx + 3).trim() : "";
+    items.push({ letter, title, data, action });
+  }
+  if (items.length === 0) return <div className="text-[13px] text-slate-500">{body}</div>;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+      {items.map((it) => (
+        <div key={it.letter} className="rounded-lg border border-slate-200 bg-white overflow-hidden flex flex-col">
+          <div className="px-3 py-1.5 bg-slate-50/70 border-b border-slate-100 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-md bg-slate-200 text-slate-600 text-[11px] font-semibold flex-shrink-0">
+              {it.letter}
+            </span>
+            <span className="text-[12.5px] font-semibold text-slate-800 leading-tight">{it.title}</span>
+          </div>
+          <div className="px-3 py-2.5 space-y-2 flex-1">
+            <div className="text-[12.5px] text-slate-700 leading-[1.55]">{highlightInsight(it.data)}</div>
+            {it.action && (
+              <div className="border-l-2 border-indigo-300 pl-2.5 text-[12.5px] text-slate-700 leading-[1.55]">
+                <span className="text-[9.5px] font-semibold tracking-wider text-indigo-600 uppercase mr-1.5">▸ 권고</span>
+                {highlightInsight(it.action)}
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1700,16 +1817,6 @@ export function AIReportModal({
   }, [isOpen, generate]);
 
   const staticFileName = `${year}-${month}-${yearType}-${mode}.txt`;
-
-  const handleDownloadTxt = useCallback(() => {
-    if (!rawText) return;
-    const blob = new Blob([rawText], { type: "text/plain;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = staticFileName;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }, [rawText, staticFileName]);
 
   const handleDownload = useCallback(() => {
     if (!reportBodyRef.current) return;
@@ -1863,27 +1970,15 @@ ${inner}
               </Button>
             )}
             {isGenerated && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadTxt}
-                  className="text-xs h-7 gap-1"
-                  title="다운로드"
-                >
-                  <Download className="w-3 h-3" />
-                  TXT
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownload}
-                  className="text-xs h-7 gap-1"
-                >
-                  <Download className="w-3 h-3" />
-                  HTML
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
+                className="text-xs h-7 gap-1"
+              >
+                <Download className="w-3 h-3" />
+                HTML
+              </Button>
             )}
             <button
               onClick={() => {
