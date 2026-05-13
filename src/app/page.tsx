@@ -82,7 +82,10 @@ export default function HomePage() {
 
   const fallbackYearOption = availableYearOptions.find((opt) => opt.year === 2026 && opt.type === "actual") || (availableYearOptions[0] ?? { year: 2025, type: "actual" as const, display: "2025년(실적)" });
   const initialYearOption = savedValid ? savedOption! : fallbackYearOption;
-  const initialMonth = savedValid ? saved!.month : 1;
+  // 저장된 기본값이 없으면 선택된 연도의 가장 최근 가용 월로
+  const initialAvailableMonths = getAvailableMonths(initialYearOption.year, initialYearOption.type);
+  const latestAvailableMonth = initialAvailableMonths.length > 0 ? initialAvailableMonths[initialAvailableMonths.length - 1] : 1;
+  const initialMonth = savedValid ? saved!.month : latestAvailableMonth;
   const initialMode: Mode = savedValid ? saved!.mode : "monthly";
 
   const [yearOption, setYearOption] = useState<YearOption>(initialYearOption);

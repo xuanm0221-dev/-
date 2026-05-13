@@ -129,7 +129,10 @@ export default function DivisionPage() {
 
   const fallbackYearOption = availableYearOptions.find((opt) => opt.year === 2026 && opt.type === "actual") || availableYearOptions[0] || { year: 2025, type: "actual" as const, display: "2025년(실적)" };
   const initialYearOption = urlYearOption || (savedValid ? savedOption! : fallbackYearOption);
-  const initialMonth = (monthParam && !isNaN(parseInt(monthParam))) ? parseInt(monthParam) : (savedValid ? saved!.month : 1);
+  // URL/저장값이 없으면 선택된 연도의 가장 최근 가용 월로
+  const initialAvailableMonths = getAvailableMonths(initialYearOption.year, initialYearOption.type);
+  const latestAvailableMonth = initialAvailableMonths.length > 0 ? initialAvailableMonths[initialAvailableMonths.length - 1] : 1;
+  const initialMonth = (monthParam && !isNaN(parseInt(monthParam))) ? parseInt(monthParam) : (savedValid ? saved!.month : latestAvailableMonth);
   const defaultMode: Mode = initialYearOption.type === "actual" ? "ytd" : "monthly";
   const initialMode: Mode = (modeParam === "monthly" || modeParam === "ytd") ? modeParam : (savedValid ? saved!.mode : defaultMode);
 
