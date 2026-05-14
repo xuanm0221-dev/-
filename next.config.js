@@ -11,6 +11,9 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/ai-report": ["./data/ai-reports/**/*", "./data/aggregated-expense.json"],
     "/api/expense-data": ["./data/aggregated-expense.json"],
+    // layout.tsx가 SSR로 AI 리포트 본문을 HTML에 임베드하므로 루트/모든 페이지에도 포함
+    "/": ["./data/ai-reports/**/*"],
+    "/[division]": ["./data/ai-reports/**/*"],
   },
 };
 
