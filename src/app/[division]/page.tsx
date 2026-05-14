@@ -146,6 +146,8 @@ export default function DivisionPage() {
   const [travelNode, setTravelNode] = useState<ExpenseAccountRow | null>(null);
   const [tableAnnualTotals, setTableAnnualTotals] = useState<{ prev: number; curr: number } | null>(null);
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
+  const [forceExpandAll, setForceExpandAll] = useState(false);
+  const [isPdfExporting, setIsPdfExporting] = useState(false);
   const exportAreaRef = useRef<HTMLDivElement>(null);
 
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
@@ -205,6 +207,84 @@ export default function DivisionPage() {
     a.click();
     URL.revokeObjectURL(a.href);
   }, [yearOption.year, month]);
+
+  // 당월 + YTD + AI 보고서를 합쳐 하나의 PDF로 인쇄
+  // AI 보고서는 모달의 디자인된 HTML을 그대로 캡처해서 PDF에 포함
+  const handleDownloadPdf = useCallback(async () => {
+    if (!exportAreaRef.current) return;
+    setIsPdfExporting(true);
+    setForceExpandAll(true);
+    const originalMode = mode;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    // 특정 selector가 'ready' 상태가 될 때까지 대기 (최대 timeout)
+    const waitForReady = (selector: string, timeoutMs = 15000): Promise<HTMLElement | null> =>
+      new Promise((resolve) => {
+        const start = Date.now();
+        const tick = () => {
+          const el = document.querySelector(selector) as HTMLElement | null;
+          if (el && el.getAttribute("data-ai-report-state") === "ready") return resolve(el);
+          if (Date.now() - start > timeoutMs) return resolve(el);
+          setTimeout(tick, 120);
+        };
+        tick();
+      });
+    try {
+      // 1) 당월 캡처
+      setMode("monthly");
+      await sleep(800);
+      const monthlyHtml = exportAreaRef.current.innerHTML;
+      // 2) YTD 캡처
+      setMode("ytd");
+      await sleep(800);
+      const ytdHtml = exportAreaRef.current.innerHTML;
+      // 3) AI 보고서 모달 열고 디자인된 HTML 캡처
+      setIsAIReportOpen(true);
+      await sleep(200);
+      const aiBody = await waitForReady("#ai-report-body");
+      let aiHtml = "";
+      if (aiBody) {
+        aiHtml = aiBody.innerHTML;
+        await sleep(150);
+      } else {
+        aiHtml = "<p style='color:#b91c1c;font-size:13px;'>AI 보고서 로드 실패</p>";
+      }
+      setIsAIReportOpen(false);
+      // 4) 합쳐서 새 창으로 열고 자동 인쇄
+      const title = `법인 종합 리포트 ${yearOption.year}년 ${month}월`;
+      const fullDoc = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><title>${title}</title><script src="https://cdn.tailwindcss.com"></script><style>
+        @media print {
+          @page { size: A4; margin: 12mm; }
+          .page-break { page-break-before: always; }
+          .no-print { display: none !important; }
+        }
+        body { font-family: system-ui, -apple-system, sans-serif; color: #1f2937; background: white; }
+        h1.section-title { font-size: 22px; font-weight: 800; margin: 18px 0 12px; padding-bottom: 8px; border-bottom: 3px solid #4f46e5; color: #1e293b; }
+      </style></head><body class="p-4 bg-white">
+        <h1 class="section-title">📅 ${yearOption.year}년 ${month}월 당월 — 법인 대시보드 (전체 펼침)</h1>
+        ${monthlyHtml}
+        <div class="page-break"></div>
+        <h1 class="section-title">📊 ${yearOption.year}년 1~${month}월 YTD 누적 — 법인 대시보드 (전체 펼침)</h1>
+        ${ytdHtml}
+        <div class="page-break"></div>
+        <h1 class="section-title">🤖 AI 보고서 (${yearOption.year}년 ${month}월 ${mode === "monthly" ? "당월" : "YTD"})</h1>
+        ${aiHtml}
+        <script>
+          window.addEventListener('load', () => {
+            setTimeout(() => { window.print(); }, 1500);
+          });
+        </script>
+      </body></html>`;
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(fullDoc);
+        w.document.close();
+      }
+    } finally {
+      setMode(originalMode);
+      setForceExpandAll(false);
+      setIsPdfExporting(false);
+    }
+  }, [exportAreaRef, mode, yearOption.year, yearOption.type, month]);
 
   if (!["법인", "MLB", "KIDS", "DISCOVERY", "공통"].includes(bizUnit)) {
     return (
@@ -568,14 +648,26 @@ export default function DivisionPage() {
               AI 보고서
             </button>
             {isCorporate && (
-              <button
-                type="button"
-                onClick={handleDownloadHtml}
-                className="flex h-7 items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
-              >
-                <Download className="h-3 w-3 flex-shrink-0" />
-                {t("HTML 다운로드", lang)}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleDownloadHtml}
+                  className="flex h-7 items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                >
+                  <Download className="h-3 w-3 flex-shrink-0" />
+                  {t("HTML 다운로드", lang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={isPdfExporting}
+                  className="flex h-7 items-center gap-1 rounded-lg border border-indigo-300 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-wait"
+                  title="당월 + YTD + AI 보고서를 합쳐 PDF로 인쇄 (전체 펼침 상태)"
+                >
+                  <Download className="h-3 w-3 flex-shrink-0" />
+                  {isPdfExporting ? "준비 중..." : "PDF 다운로드"}
+                </button>
+              </>
             )}
             {isPlanYear && (
               <span className="text-[10px] font-medium text-gray-600 whitespace-nowrap">
@@ -728,6 +820,7 @@ export default function DivisionPage() {
             onHierarchyReady={handleHierarchyReady}
             onAnnualTotalsChange={(isBrand || isCommon) && is2026Annual ? handleAnnualTotalsChange : undefined}
             yearType={yearType}
+            forceExpandAll={forceExpandAll}
             {...(yearType === "actual" ? { mode, onModeChange: setMode } : {})}
           />
         </div>

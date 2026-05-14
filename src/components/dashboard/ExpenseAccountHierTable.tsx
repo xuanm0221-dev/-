@@ -26,6 +26,8 @@ interface ExpenseAccountHierTableProps {
   /** 실적(actual)일 때만 전달: 페이지 mode와 동기화 */
   mode?: "monthly" | "ytd";
   onModeChange?: (mode: "monthly" | "ytd") => void;
+  /** 인쇄/PDF용: true이면 모든 행을 펼친 상태로 렌더 (expandedRows 무시) */
+  forceExpandAll?: boolean;
 }
 
 export function ExpenseAccountHierTable({
@@ -38,6 +40,7 @@ export function ExpenseAccountHierTable({
   yearType = 'actual',
   mode: modeProp,
   onModeChange,
+  forceExpandAll = false,
 }: ExpenseAccountHierTableProps) {
   const [viewMode, setViewMode] = useState<"monthly" | "ytd" | "annual">("ytd");
   const is2026AnnualOnly = year === 2026 && yearType === 'plan';
@@ -51,6 +54,8 @@ export function ExpenseAccountHierTable({
     }
   }, [modeProp, is2026AnnualOnly]);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  // forceExpandAll=true면 모든 행을 펼친 것으로 간주 (인쇄/PDF용)
+  const isRowExpanded = (key: string) => forceExpandAll || expandedRows.has(key);
   
   // 설명 편집을 위한 상태 관리 (언어별 ko/zh)
   type DescByLang = { ko?: string; zh?: string };
@@ -374,7 +379,7 @@ export function ExpenseAccountHierTable({
           prev_year_annual: null,
           curr_year_annual: null,
           description: "",
-          isExpanded: expandedRows.has(`l1-${l1Key}`),
+          isExpanded: isRowExpanded(`l1-${l1Key}`),
           children: [],
         });
       }
@@ -405,7 +410,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${bizUnitKey}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${bizUnitKey}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -471,7 +476,7 @@ export function ExpenseAccountHierTable({
                 prev_year_annual: null,
                 curr_year_annual: null,
                 description: "",
-                isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+                isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
                 children: [],
               };
               l2Map.set(l2Key, l2Row);
@@ -512,7 +517,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -543,7 +548,7 @@ export function ExpenseAccountHierTable({
                 prev_year_annual: null,
                 curr_year_annual: null,
                 description: "",
-                isExpanded: expandedRows.has(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
+                isExpanded: isRowExpanded(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
                 children: [],
               };
               l3Map.set(l3Key, l3Row);
@@ -658,7 +663,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -689,7 +694,7 @@ export function ExpenseAccountHierTable({
                 prev_year_annual: null,
                 curr_year_annual: null,
                 description: "",
-                isExpanded: expandedRows.has(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
+                isExpanded: isRowExpanded(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
                 children: [],
               };
               l3Map.set(l3Key, l3Row);
@@ -804,7 +809,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -884,7 +889,7 @@ export function ExpenseAccountHierTable({
           prev_year_annual: null,
           curr_year_annual: null,
           description: "",
-          isExpanded: expandedRows.has(`l1-${l1Key}`),
+          isExpanded: isRowExpanded(`l1-${l1Key}`),
           children: [],
         });
       }
@@ -915,7 +920,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${bizUnitKey}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${bizUnitKey}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -981,7 +986,7 @@ export function ExpenseAccountHierTable({
                 prev_year_annual: null,
                 curr_year_annual: null,
                 description: "",
-                isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+                isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
                 children: [],
               };
               l2Map.set(l2Key, l2Row);
@@ -1022,7 +1027,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -1053,7 +1058,7 @@ export function ExpenseAccountHierTable({
                 prev_year_annual: null,
                 curr_year_annual: null,
                 description: "",
-                isExpanded: expandedRows.has(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
+                isExpanded: isRowExpanded(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
                 children: [],
               };
               l3Map.set(l3Key, l3Row);
@@ -1168,7 +1173,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);
@@ -1199,7 +1204,7 @@ export function ExpenseAccountHierTable({
                 prev_year_annual: null,
                 curr_year_annual: null,
                 description: "",
-                isExpanded: expandedRows.has(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
+                isExpanded: isRowExpanded(`l3-${l1Key}-${detail.cost_lv2}-${bizUnitKey}`),
                 children: [],
               };
               l3Map.set(l3Key, l3Row);
@@ -1314,7 +1319,7 @@ export function ExpenseAccountHierTable({
               prev_year_annual: null,
               curr_year_annual: null,
               description: "",
-              isExpanded: expandedRows.has(`l2-${l1Key}-${detail.cost_lv2}`),
+              isExpanded: isRowExpanded(`l2-${l1Key}-${detail.cost_lv2}`),
               children: [],
             };
             l2Map.set(l2Key, l2Row);

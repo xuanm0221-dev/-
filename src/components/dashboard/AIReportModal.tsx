@@ -2000,7 +2000,7 @@ ${inner}
 
           {/* Dashboard content */}
           {rawText && (
-            <div ref={reportBodyRef}>
+            <div ref={reportBodyRef} id="ai-report-body" data-ai-report-state={isGenerated ? "ready" : "loading"}>
               {/* 표 공통 scoped 스타일 */}
               <style>{`
                 /* ── 공통 표 베이스 ── */
