@@ -842,13 +842,18 @@ export function getAvailableYears(): number[] {
 
 export function getAvailableMonths(year: number, yearType: 'actual' | 'plan' = 'actual'): number[] {
   const data = getData();
-  const months = data.monthly_total
-    .filter((item) => 
-      item.year === year && 
-      item.year_type === yearType
-    )
-    .map((item) => item.month);
-  return [...new Set(months)].sort((a, b) => a - b);
+  // 월별 amount 합계를 계산해 0이 아닌 월만 "가용"으로 간주
+  // (전처리 시 미래 월에도 0 행이 생성되므로 단순 존재 여부로는 부족)
+  const sumsByMonth = new Map<number, number>();
+  for (const item of data.monthly_total) {
+    if (item.year === year && item.year_type === yearType) {
+      sumsByMonth.set(item.month, (sumsByMonth.get(item.month) ?? 0) + (item.amount ?? 0));
+    }
+  }
+  return Array.from(sumsByMonth.entries())
+    .filter(([, sum]) => sum !== 0)
+    .map(([m]) => m)
+    .sort((a, b) => a - b);
 }
 
 export interface AdSalesDataPoint {
