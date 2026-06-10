@@ -11,11 +11,11 @@ interface DeepAnalysisModalProps {
 // 섹션 헤더 — 큰 숫자 + 제목 + 하단 보더 (3섹션 구분 리듬용)
 function SectionHeading({ index, title }: { index: number; title: string }) {
   return (
-    <div className="flex items-baseline gap-3 mb-5 pb-2.5 border-b-2 border-slate-200">
-      <span className="text-[28px] font-extrabold text-violet-600 leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
+    <div className="flex items-baseline gap-3 mb-5 pb-3 border-b-2 border-slate-200">
+      <span className="text-[34px] font-extrabold text-violet-600 leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
         {index}.
       </span>
-      <h2 className="text-[19px] font-bold text-slate-900 leading-tight">{title}</h2>
+      <h2 className="text-[22px] font-bold text-slate-900 leading-tight">{title}</h2>
     </div>
   );
 }
@@ -57,11 +57,11 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-7 py-6">
           {/* Title block — 메인 헤더 (유일한 그라데이션) */}
-          <div className="rounded-xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 px-6 py-5 text-white shadow-md mb-8">
-            <div className="text-[12px] font-semibold uppercase tracking-widest text-violet-100 mb-2">
+          <div className="rounded-xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 px-7 py-6 text-white shadow-md mb-8">
+            <div className="text-[13px] font-semibold uppercase tracking-widest text-violet-100 mb-2.5">
               심층 보고서
             </div>
-            <h1 className="text-[22px] font-bold leading-snug">
+            <h1 className="text-[27px] font-bold leading-snug tracking-tight">
               2026년 5월 F&amp;F 중국 법인 비용 구조 및 운영 효율성 분석
             </h1>
           </div>
@@ -75,22 +75,22 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
             {/* KPI 스탯 카드 — 한 눈에 잡히는 핵심 수치라서 박스 유지 */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-4 py-3.5">
-                <div className="text-[12px] font-semibold tracking-wider text-emerald-700 uppercase mb-1">판매매출</div>
-                <div className="text-[26px] font-bold text-emerald-700 leading-tight" style={{ fontVariantNumeric: "tabular-nums" }}>4,164M</div>
-                <div className="text-[13px] text-slate-600 mt-1.5">전년 동기 3,870M 대비 <strong className="text-emerald-700">108% 성장</strong></div>
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 px-4 py-4">
+                <div className="text-[13px] font-semibold tracking-wider text-emerald-700 uppercase mb-1.5">판매매출</div>
+                <div className="text-[22px] font-bold text-emerald-700 leading-tight" style={{ fontVariantNumeric: "tabular-nums" }}>4,164M</div>
+                <div className="text-[14px] text-slate-700 mt-2 leading-[1.5]">전년 동기 3,870M 대비 <strong className="text-emerald-700">108% 성장</strong></div>
               </div>
-              <div className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-3.5">
-                <div className="text-[12px] font-semibold tracking-wider text-amber-700 uppercase mb-1">총비용 집행</div>
-                <div className="text-[26px] font-bold text-amber-700 leading-tight" style={{ fontVariantNumeric: "tabular-nums" }}>192,078K</div>
-                <div className="text-[13px] text-slate-600 mt-1.5">전년 대비 <strong className="text-amber-700">117% 증가</strong>, 매출 성장률 상회</div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-4">
+                <div className="text-[13px] font-semibold tracking-wider text-amber-700 uppercase mb-1.5">총비용 집행</div>
+                <div className="text-[22px] font-bold text-amber-700 leading-tight" style={{ fontVariantNumeric: "tabular-nums" }}>192,078K</div>
+                <div className="text-[14px] text-slate-700 mt-2 leading-[1.5]">전년 대비 <strong className="text-amber-700">117% 증가</strong>, 매출 성장률 상회</div>
               </div>
-              <div className="rounded-lg border border-rose-200 bg-rose-50/40 px-4 py-3.5">
-                <div className="text-[12px] font-semibold tracking-wider text-rose-700 uppercase mb-1">매출 대비 비용률</div>
-                <div className="text-[26px] font-bold text-rose-700 leading-tight" style={{ fontVariantNumeric: "tabular-nums" }}>
-                  5.2% <span className="text-[16px] font-semibold">(+0.4%p)</span>
+              <div className="rounded-lg border border-rose-200 bg-rose-50/40 px-4 py-4">
+                <div className="text-[13px] font-semibold tracking-wider text-rose-700 uppercase mb-1.5">매출 대비 비용률</div>
+                <div className="text-[22px] font-bold text-rose-700 leading-tight" style={{ fontVariantNumeric: "tabular-nums" }}>
+                  5.2% <span className="text-[14.5px] font-semibold">(+0.4%p)</span>
                 </div>
-                <div className="text-[13px] text-slate-600 mt-1.5">SCM 혁신·공간 확장 <strong>전략적 비용 포함</strong></div>
+                <div className="text-[14px] text-slate-700 mt-2 leading-[1.5]">SCM 혁신·공간 확장 <strong>전략적 비용 포함</strong></div>
               </div>
             </div>
 
@@ -106,13 +106,15 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
             <div className="space-y-4">
               {/* ① 광고비 */}
               <div className="bg-slate-50/70 border-l-[3px] border-blue-500 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                <div className="flex items-start gap-2.5 mb-3">
                   <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-[15px] font-bold flex-shrink-0">1</span>
-                  <span className="text-[18px] font-bold text-slate-900">
-                    광고비 <span className="text-blue-700">90,847K · YoY 124%</span>
-                  </span>
-                </h3>
-                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">성장을 견인하는 핵심 엔진</p>
+                  <div>
+                    <h3 className="text-[18px] font-bold text-slate-900 leading-tight">
+                      광고비 <span className="text-blue-700">90,847K · YoY 124%</span>
+                    </h3>
+                    <p className="text-[13.5px] text-slate-500 font-medium mt-1">성장을 견인하는 핵심 엔진</p>
+                  </div>
+                </div>
                 <div className="space-y-2 text-[14.5px] text-slate-700 leading-[1.7]">
                   <p>
                     <span className="font-semibold text-slate-900">브랜드별 전략:</span> <strong>MLB(67,895K, 120%↑)</strong>가 안정적 매출 기반을 제공하는 가운데, <strong>DISCOVERY(15,846K, 153%↑)</strong>에 대한 공격적 투자가 이어지고 있습니다.
@@ -129,13 +131,15 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
               {/* ② 지급수수료 */}
               <div className="bg-slate-50/70 border-l-[3px] border-amber-500 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                <div className="flex items-start gap-2.5 mb-3">
                   <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-600 text-white text-[15px] font-bold flex-shrink-0">2</span>
-                  <span className="text-[18px] font-bold text-slate-900">
-                    지급수수료 <span className="text-amber-700">7,657K · YoY 145%</span>
-                  </span>
-                </h3>
-                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">SCM 혁신을 위한 선제적 투자</p>
+                  <div>
+                    <h3 className="text-[18px] font-bold text-slate-900 leading-tight">
+                      지급수수료 <span className="text-amber-700">7,657K · YoY 145%</span>
+                    </h3>
+                    <p className="text-[13.5px] text-slate-500 font-medium mt-1">SCM 혁신을 위한 선제적 투자</p>
+                  </div>
+                </div>
                 <div className="space-y-2 text-[14.5px] text-slate-700 leading-[1.7]">
                   <p>
                     <span className="font-semibold text-slate-900">일시적 비용의 집중:</span> 온라인 창고 이전 관련 <strong>Supply Chain 비용 3,405K (578%↑)</strong> 및 재고 전수 실사로 인한 <strong>서비스 비용 738K (3,517%↑)</strong> 급증.
@@ -149,11 +153,13 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
               {/* ③ 임차료 및 수주회 */}
               <div className="bg-slate-50/70 border-l-[3px] border-slate-400 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                <div className="flex items-start gap-2.5 mb-3">
                   <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-600 text-white text-[15px] font-bold flex-shrink-0">3</span>
-                  <span className="text-[18px] font-bold text-slate-900">임차료 및 수주회</span>
-                </h3>
-                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">구조적 상승과 운영 리스크 관리</p>
+                  <div>
+                    <h3 className="text-[18px] font-bold text-slate-900 leading-tight">임차료 및 수주회</h3>
+                    <p className="text-[13.5px] text-slate-500 font-medium mt-1">구조적 상승과 운영 리스크 관리</p>
+                  </div>
+                </div>
                 <div className="space-y-2.5 text-[14.5px] text-slate-700 leading-[1.7]">
                   <p>
                     <span className="font-semibold text-slate-900">임차료 9,560K (YoY 120%):</span> 사무실 추가 임차에 따른 구조적 고정비 상승. 계획 누적액(9,562K) 대비 <strong className="text-emerald-700">100% 집행률</strong> — 계획 범위 내 질서 있게 발생 중.
@@ -166,13 +172,15 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
               {/* ④ IT 수수료 */}
               <div className="bg-slate-50/70 border-l-[3px] border-emerald-500 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                <div className="flex items-start gap-2.5 mb-3">
                   <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600 text-white text-[15px] font-bold flex-shrink-0">4</span>
-                  <span className="text-[18px] font-bold text-slate-900">
-                    IT 수수료 <span className="text-emerald-700">4,717K · YoY 89%</span>
-                  </span>
-                </h3>
-                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">효율화와 기술 투자의 병행</p>
+                  <div>
+                    <h3 className="text-[18px] font-bold text-slate-900 leading-tight">
+                      IT 수수료 <span className="text-emerald-700">4,717K · YoY 89%</span>
+                    </h3>
+                    <p className="text-[13.5px] text-slate-500 font-medium mt-1">효율화와 기술 투자의 병행</p>
+                  </div>
+                </div>
                 <p className="text-[14.5px] text-slate-700 leading-[1.7]">
                   전체 지출은 감소했으나, 온라인 플랫폼 수수료를 절감(<strong>-314K</strong>)한 재원을 <strong>AI 식별시스템(611K 신규)</strong> 및 <strong>OMS(198%↑)</strong> 등 자체 시스템 고도화에 재투입 — 디지털 전환 가속화.
                 </p>
