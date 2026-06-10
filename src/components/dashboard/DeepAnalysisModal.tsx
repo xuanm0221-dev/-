@@ -106,10 +106,13 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
             <div className="space-y-4">
               {/* ① 광고비 */}
               <div className="bg-slate-50/70 border-l-[3px] border-blue-500 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="text-[16.5px] font-bold text-slate-900 mb-2.5 leading-tight">
-                  ① 광고비 <span className="text-blue-700">90,847K · YoY 124%</span>
-                  <span className="text-slate-500 font-medium block text-[14px] mt-0.5">성장을 견인하는 핵심 엔진</span>
+                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-600 text-white text-[15px] font-bold flex-shrink-0">1</span>
+                  <span className="text-[18px] font-bold text-slate-900">
+                    광고비 <span className="text-blue-700">90,847K · YoY 124%</span>
+                  </span>
                 </h3>
+                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">성장을 견인하는 핵심 엔진</p>
                 <div className="space-y-2 text-[14.5px] text-slate-700 leading-[1.7]">
                   <p>
                     <span className="font-semibold text-slate-900">브랜드별 전략:</span> <strong>MLB(67,895K, 120%↑)</strong>가 안정적 매출 기반을 제공하는 가운데, <strong>DISCOVERY(15,846K, 153%↑)</strong>에 대한 공격적 투자가 이어지고 있습니다.
@@ -126,10 +129,13 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
               {/* ② 지급수수료 */}
               <div className="bg-slate-50/70 border-l-[3px] border-amber-500 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="text-[16.5px] font-bold text-slate-900 mb-2.5 leading-tight">
-                  ② 지급수수료 <span className="text-amber-700">7,657K · YoY 145%</span>
-                  <span className="text-slate-500 font-medium block text-[14px] mt-0.5">SCM 혁신을 위한 선제적 투자</span>
+                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-600 text-white text-[15px] font-bold flex-shrink-0">2</span>
+                  <span className="text-[18px] font-bold text-slate-900">
+                    지급수수료 <span className="text-amber-700">7,657K · YoY 145%</span>
+                  </span>
                 </h3>
+                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">SCM 혁신을 위한 선제적 투자</p>
                 <div className="space-y-2 text-[14.5px] text-slate-700 leading-[1.7]">
                   <p>
                     <span className="font-semibold text-slate-900">일시적 비용의 집중:</span> 온라인 창고 이전 관련 <strong>Supply Chain 비용 3,405K (578%↑)</strong> 및 재고 전수 실사로 인한 <strong>서비스 비용 738K (3,517%↑)</strong> 급증.
@@ -143,10 +149,11 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
               {/* ③ 임차료 및 수주회 */}
               <div className="bg-slate-50/70 border-l-[3px] border-slate-400 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="text-[16.5px] font-bold text-slate-900 mb-2.5 leading-tight">
-                  ③ 임차료 및 수주회
-                  <span className="text-slate-500 font-medium block text-[14px] mt-0.5">구조적 상승과 운영 리스크 관리</span>
+                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-slate-600 text-white text-[15px] font-bold flex-shrink-0">3</span>
+                  <span className="text-[18px] font-bold text-slate-900">임차료 및 수주회</span>
                 </h3>
+                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">구조적 상승과 운영 리스크 관리</p>
                 <div className="space-y-2.5 text-[14.5px] text-slate-700 leading-[1.7]">
                   <p>
                     <span className="font-semibold text-slate-900">임차료 9,560K (YoY 120%):</span> 사무실 추가 임차에 따른 구조적 고정비 상승. 계획 누적액(9,562K) 대비 <strong className="text-emerald-700">100% 집행률</strong> — 계획 범위 내 질서 있게 발생 중.
@@ -159,10 +166,13 @@ export function DeepAnalysisModal({ isOpen, onClose }: DeepAnalysisModalProps) {
 
               {/* ④ IT 수수료 */}
               <div className="bg-slate-50/70 border-l-[3px] border-emerald-500 rounded-r-lg pl-5 pr-5 py-4">
-                <h3 className="text-[16.5px] font-bold text-slate-900 mb-2.5 leading-tight">
-                  ④ IT 수수료 <span className="text-emerald-700">4,717K · YoY 89%</span>
-                  <span className="text-slate-500 font-medium block text-[14px] mt-0.5">효율화와 기술 투자의 병행</span>
+                <h3 className="flex items-center gap-2.5 mb-3 leading-tight">
+                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-600 text-white text-[15px] font-bold flex-shrink-0">4</span>
+                  <span className="text-[18px] font-bold text-slate-900">
+                    IT 수수료 <span className="text-emerald-700">4,717K · YoY 89%</span>
+                  </span>
                 </h3>
+                <p className="text-[13.5px] text-slate-500 font-medium mb-3 -mt-1.5 ml-[42px]">효율화와 기술 투자의 병행</p>
                 <p className="text-[14.5px] text-slate-700 leading-[1.7]">
                   전체 지출은 감소했으나, 온라인 플랫폼 수수료를 절감(<strong>-314K</strong>)한 재원을 <strong>AI 식별시스템(611K 신규)</strong> 및 <strong>OMS(198%↑)</strong> 등 자체 시스템 고도화에 재투입 — 디지털 전환 가속화.
                 </p>
