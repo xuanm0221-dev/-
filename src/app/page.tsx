@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, BookmarkCheck, Bot, type LucideIcon } from "lucide-react";
+import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, BookmarkCheck, Bot, Microscope, type LucideIcon } from "lucide-react";
 import React from "react";
 
 // 야구공 아이콘 컴포넌트 (LucideIcon 타입과 호환)
@@ -48,6 +48,7 @@ BaseballIcon.displayName = "BaseballIcon";
 import { BrandCard } from "@/components/dashboard/BrandCard";
 import { ReportModal } from "@/components/dashboard/ReportModal";
 import { AIReportModal } from "@/components/dashboard/AIReportModal";
+import { DeepAnalysisModal } from "@/components/dashboard/DeepAnalysisModal";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,6 +94,7 @@ export default function HomePage() {
   const [mode, setMode] = useState<Mode>(initialMode);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
+  const [isDeepAnalysisOpen, setIsDeepAnalysisOpen] = useState(false);
 
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
   const availableMonths = getAvailableMonths(yearOption.year, yearOption.type);
@@ -235,6 +237,16 @@ export default function HomePage() {
                 <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
                 AI 보고서
               </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setIsDeepAnalysisOpen(true)}
+                className="flex-shrink-0 text-[10px] sm:text-xs bg-violet-50 text-violet-700 border border-violet-300 hover:bg-violet-100"
+                variant="outline"
+              >
+                <Microscope className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
+                심층분석
+              </Button>
               {isPlanYear && (
                 <>
                   <Button
@@ -317,6 +329,11 @@ export default function HomePage() {
       month={month}
       mode={mode}
       yearType={yearOption.type}
+    />
+
+    <DeepAnalysisModal
+      isOpen={isDeepAnalysisOpen}
+      onClose={() => setIsDeepAnalysisOpen(false)}
     />
     </>
   );
