@@ -334,6 +334,8 @@ export default function HomePage() {
     <DeepAnalysisModal
       isOpen={isDeepAnalysisOpen}
       onClose={() => setIsDeepAnalysisOpen(false)}
+      year={yearOption.year}
+      month={month}
     />
     </>
   );
