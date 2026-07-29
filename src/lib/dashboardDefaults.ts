@@ -1,10 +1,13 @@
+import type { Mode } from "./expenseData";
+
 const STORAGE_KEY = "expense-dashboard-default";
+const VALID_MODES: Mode[] = ["monthly", "ytd", "q1", "q2", "q3", "q4"];
 
 export interface SavedDashboardDefault {
   year: number;
   type: "actual" | "plan";
   month: number;
-  mode: "monthly" | "ytd";
+  mode: Mode;
 }
 
 export function getSavedDefault(): SavedDashboardDefault | null {
@@ -17,7 +20,7 @@ export function getSavedDefault(): SavedDashboardDefault | null {
       typeof parsed?.year === "number" &&
       (parsed.type === "actual" || parsed.type === "plan") &&
       typeof parsed?.month === "number" &&
-      (parsed.mode === "monthly" || parsed.mode === "ytd")
+      VALID_MODES.includes(parsed.mode)
     ) {
       return parsed;
     }
@@ -31,7 +34,7 @@ export function saveDefault(
   year: number,
   type: "actual" | "plan",
   month: number,
-  mode: "monthly" | "ytd"
+  mode: Mode
 ): void {
   if (typeof window === "undefined") return;
   try {

@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "@/components/ui/dialog";
-import { getCategoryDetail, getAnnualHeadcountSum, getYTDHeadcountSum, getMonthlyTotal, type BizUnit } from "@/lib/expenseData";
+import { getCategoryDetail, getAnnualHeadcountSum, getYTDHeadcountSum, getMonthlyTotal, type BizUnit, type Mode } from "@/lib/expenseData";
 import { formatK, formatPercent } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
@@ -24,8 +24,6 @@ const SUB_UNIT_ORDER: { bizUnit: BizUnit; label: string }[] = [
 ];
 const navyColor = "#001f3f";
 const navyBarColor = "#5b7cba"; // 톤 다운된 파랑 (좌측 세로 바)
-
-type Mode = 'monthly' | 'ytd';
 
 interface LaborCostPerCapitaCardProps {
   bizUnit: BizUnit;
@@ -57,8 +55,8 @@ export function LaborCostPerCapitaCard({ bizUnit, year, month, mode = 'ytd', yea
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const isPlanYear = year === 2026 && yearType === 'plan';
 
-  // 예산(2026 plan): 연간 비용/연간 인원수. 실적: mode에 따라 당월 vs YTD
-  const costMode: 'monthly' | 'ytd' = isPlanYear ? 'ytd' : mode;
+  // 예산(2026 plan): 연간 비용/연간 인원수. 실적: mode에 따라 당월 vs YTD (분기 포함)
+  const costMode: Mode = isPlanYear ? 'ytd' : mode;
   const detailCurrent = getCategoryDetail(bizUnit, year, month, "인건비", costMode, yearType);
   const detailPrev = isPlanYear
     ? getCategoryDetail(bizUnit, 2025, 12, "인건비", "ytd", 'actual')

@@ -3,8 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { ChevronRight, ChevronDown, ChevronsDownUp, Edit2, Check, X, PieChart, Calendar, Info, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCategoryDetail, getAnnualData, getAggregatedData, getMonthlyTotal, getYTDHeadcountSum, aggregateCategoryDetailToAnnual, type BizUnit } from "@/lib/expenseData";
+import { getCategoryDetail, getAnnualData, getAggregatedData, getMonthlyTotal, getYTDHeadcountSum, aggregateCategoryDetailToAnnual, type BizUnit, type Mode } from "@/lib/expenseData";
 import { useToast } from "@/components/ui/toast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getDisplayLabel, t } from "@/lib/translations";
@@ -24,8 +23,8 @@ interface ExpenseAccountHierTableProps {
   onAnnualTotalsChange?: (totals: { prevYear: number; currYear: number }) => void;
   yearType?: 'actual' | 'plan';
   /** 실적(actual)일 때만 전달: 페이지 mode와 동기화 */
-  mode?: "monthly" | "ytd";
-  onModeChange?: (mode: "monthly" | "ytd") => void;
+  mode?: Mode;
+  onModeChange?: (mode: Mode) => void;
   /** 인쇄/PDF용: true이면 모든 행을 펼친 상태로 렌더 (expandedRows 무시) */
   forceExpandAll?: boolean;
 }
@@ -42,7 +41,7 @@ export function ExpenseAccountHierTable({
   onModeChange,
   forceExpandAll = false,
 }: ExpenseAccountHierTableProps) {
-  const [viewMode, setViewMode] = useState<"monthly" | "ytd" | "annual">("ytd");
+  const [viewMode, setViewMode] = useState<Mode | "annual">("ytd");
   const is2026AnnualOnly = year === 2026 && yearType === 'plan';
 
   // 실적(actual)일 때 mode prop과 동기화, 2026년(예산)이면 연간 뷰 강제
@@ -337,7 +336,7 @@ export function ExpenseAccountHierTable({
     // 모든 대분류 가져오기 (costLv1을 빈 문자열로 전달하면 모든 대분류 반환)
     const bizUnitFilter: BizUnitOrAll = bizUnit || "ALL";
     // 2026년(예산)이면 연간만 사용하므로 YTD로 가져옴. viewMode가 "annual"이면 "ytd"로 변환
-    const modeForDataFetch: "monthly" | "ytd" = (is2026AnnualOnly || viewMode === "annual") ? "ytd" : viewMode;
+    const modeForDataFetch: Mode = (is2026AnnualOnly || viewMode === "annual") ? "ytd" : viewMode;
     const allDetails = getCategoryDetail(bizUnitFilter, year, month, "", modeForDataFetch, yearType);
     // 2026년(예산)일 때는 전년도를 2025년 12월 YTD actual로 가져옴
     const prevYearDetails = is2026AnnualOnly
@@ -443,13 +442,13 @@ export function ExpenseAccountHierTable({
               l3Map.set(l3Key, l3Row);
               l2Row.children!.push(l3Row);
             }
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l3Row.prev_month += detail.amount;
             } else {
               l3Row.prev_ytd += detail.amount;
             }
           } else {
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l2Row.prev_month += detail.amount;
             } else {
               l2Row.prev_ytd += detail.amount;
@@ -482,14 +481,14 @@ export function ExpenseAccountHierTable({
               l2Map.set(l2Key, l2Row);
               l1Row.children!.push(l2Row);
             }
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l2Row.prev_month += detail.amount;
             } else {
               l2Row.prev_ytd += detail.amount;
             }
           } else {
             // 중분류가 없으면 대분류에 직접 집계
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l1Row.prev_month += detail.amount;
             } else {
               l1Row.prev_ytd += detail.amount;
@@ -582,13 +581,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l4Key, l4Row);
                 l3Row.children!.push(l4Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l4Row.prev_month += detail.amount;
               } else {
                 l4Row.prev_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.prev_month += detail.amount;
               } else {
                 l3Row.prev_ytd += detail.amount;
@@ -622,13 +621,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l3Key, l3Row);
                 l2Row.children!.push(l3Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.prev_month += detail.amount;
               } else {
                 l3Row.prev_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l2Row.prev_month += detail.amount;
               } else {
                 l2Row.prev_ytd += detail.amount;
@@ -636,7 +635,7 @@ export function ExpenseAccountHierTable({
             }
           }
         } else {
-          if (viewMode === "monthly") {
+          if (viewMode !== "ytd") {
             l1Row.prev_month += detail.amount;
           } else {
             l1Row.prev_ytd += detail.amount;
@@ -728,13 +727,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l4Key, l4Row);
                 l3Row.children!.push(l4Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l4Row.prev_month += detail.amount;
               } else {
                 l4Row.prev_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.prev_month += detail.amount;
               } else {
                 l3Row.prev_ytd += detail.amount;
@@ -768,13 +767,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l3Key, l3Row);
                 l2Row.children!.push(l3Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.prev_month += detail.amount;
               } else {
                 l3Row.prev_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l2Row.prev_month += detail.amount;
               } else {
                 l2Row.prev_ytd += detail.amount;
@@ -782,7 +781,7 @@ export function ExpenseAccountHierTable({
             }
           }
         } else {
-          if (viewMode === "monthly") {
+          if (viewMode !== "ytd") {
             l1Row.prev_month += detail.amount;
           } else {
             l1Row.prev_ytd += detail.amount;
@@ -841,20 +840,20 @@ export function ExpenseAccountHierTable({
               l3Map.set(l3Key, l3Row);
               l2Row.children!.push(l3Row);
             }
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l3Row.prev_month += detail.amount;
             } else {
               l3Row.prev_ytd += detail.amount;
             }
           } else {
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l2Row.prev_month += detail.amount;
             } else {
               l2Row.prev_ytd += detail.amount;
             }
           }
         } else {
-          if (viewMode === "monthly") {
+          if (viewMode !== "ytd") {
             l1Row.prev_month += detail.amount;
           } else {
             l1Row.prev_ytd += detail.amount;
@@ -953,13 +952,13 @@ export function ExpenseAccountHierTable({
               l3Map.set(l3Key, l3Row);
               l2Row.children!.push(l3Row);
             }
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l3Row.curr_month += detail.amount;
             } else {
               l3Row.curr_ytd += detail.amount;
             }
           } else {
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l2Row.curr_month += detail.amount;
             } else {
               l2Row.curr_ytd += detail.amount;
@@ -992,14 +991,14 @@ export function ExpenseAccountHierTable({
               l2Map.set(l2Key, l2Row);
               l1Row.children!.push(l2Row);
             }
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l2Row.curr_month += detail.amount;
             } else {
               l2Row.curr_ytd += detail.amount;
             }
           } else {
             // 중분류가 없으면 대분류에 직접 집계
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l1Row.curr_month += detail.amount;
             } else {
               l1Row.curr_ytd += detail.amount;
@@ -1092,13 +1091,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l4Key, l4Row);
                 l3Row.children!.push(l4Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l4Row.curr_month += detail.amount;
               } else {
                 l4Row.curr_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.curr_month += detail.amount;
               } else {
                 l3Row.curr_ytd += detail.amount;
@@ -1132,13 +1131,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l3Key, l3Row);
                 l2Row.children!.push(l3Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.curr_month += detail.amount;
               } else {
                 l3Row.curr_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l2Row.curr_month += detail.amount;
               } else {
                 l2Row.curr_ytd += detail.amount;
@@ -1146,7 +1145,7 @@ export function ExpenseAccountHierTable({
             }
           }
         } else {
-          if (viewMode === "monthly") {
+          if (viewMode !== "ytd") {
             l1Row.curr_month += detail.amount;
           } else {
             l1Row.curr_ytd += detail.amount;
@@ -1238,13 +1237,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l4Key, l4Row);
                 l3Row.children!.push(l4Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l4Row.curr_month += detail.amount;
               } else {
                 l4Row.curr_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.curr_month += detail.amount;
               } else {
                 l3Row.curr_ytd += detail.amount;
@@ -1278,13 +1277,13 @@ export function ExpenseAccountHierTable({
                 l3Map.set(l3Key, l3Row);
                 l2Row.children!.push(l3Row);
               }
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l3Row.curr_month += detail.amount;
               } else {
                 l3Row.curr_ytd += detail.amount;
               }
             } else {
-              if (viewMode === "monthly") {
+              if (viewMode !== "ytd") {
                 l2Row.curr_month += detail.amount;
               } else {
                 l2Row.curr_ytd += detail.amount;
@@ -1292,7 +1291,7 @@ export function ExpenseAccountHierTable({
             }
           }
         } else {
-          if (viewMode === "monthly") {
+          if (viewMode !== "ytd") {
             l1Row.curr_month += detail.amount;
           } else {
             l1Row.curr_ytd += detail.amount;
@@ -1354,14 +1353,14 @@ export function ExpenseAccountHierTable({
             }
 
             // 소분류에 금액 추가
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l3Row.curr_month += detail.amount;
             } else {
               l3Row.curr_ytd += detail.amount;
             }
           } else {
             // 소분류가 없으면 중분류에 직접 추가
-            if (viewMode === "monthly") {
+            if (viewMode !== "ytd") {
               l2Row.curr_month += detail.amount;
             } else {
               l2Row.curr_ytd += detail.amount;
@@ -1369,7 +1368,7 @@ export function ExpenseAccountHierTable({
           }
         } else {
           // 중분류가 없으면 대분류에 직접 추가
-          if (viewMode === "monthly") {
+          if (viewMode !== "ytd") {
             l1Row.curr_month += detail.amount;
           } else {
             l1Row.curr_ytd += detail.amount;
@@ -1811,7 +1810,7 @@ export function ExpenseAccountHierTable({
     // Level 3 합계를 먼저 계산해야 Level 2 합계 계산 시 올바른 값이 반영됨
     l3Map.forEach((l3Row) => {
       if (l3Row.level === 3 && l3Row.children && l3Row.children.length > 0) {
-        if (viewMode === "monthly") {
+        if (viewMode !== "ytd") {
           // 당월 모드: 소분류(level 4) 합계 계산
           let totalCurr = 0;
           let totalPrev = 0;
@@ -1836,7 +1835,7 @@ export function ExpenseAccountHierTable({
     // Level 3 합계 계산 후 실행하여 올바른 합계 반영
     l2Map.forEach((l2Row) => {
       if (l2Row.children && l2Row.children.length > 0) {
-        if (viewMode === "monthly") {
+        if (viewMode !== "ytd") {
           // 당월 모드: Level 3 합계 계산
           let totalCurr = 0;
           let totalPrev = 0;
@@ -1860,7 +1859,7 @@ export function ExpenseAccountHierTable({
     // 대분류 합계 계산 (하위 Level 2 합계) - 연간 계획 데이터 할당 후 실행
     l1Map.forEach((l1Row) => {
       if (l1Row.children && l1Row.children.length > 0) {
-        if (viewMode === "monthly") {
+        if (viewMode !== "ytd") {
           // 당월 모드: 이미 계산된 Level 2 합계를 사용
           let totalCurr = 0;
           let totalPrev = 0;
@@ -1882,7 +1881,7 @@ export function ExpenseAccountHierTable({
     });
 
     // 2026(예산) 연간 전용 뷰: 2025년 연간(실적) = 2025년 12월 YTD 실적로 통일 (prev_ytd 사용)
-    if (is2026AnnualOnly && !(viewMode === "monthly")) {
+    if (is2026AnnualOnly && !(viewMode !== "ytd")) {
       const setPrevYearAnnualFromYtd = (row: ExpenseAccountRow) => {
         row.prev_year_annual = row.prev_ytd > 0 ? row.prev_ytd : null;
         row.children?.forEach(setPrevYearAnnualFromYtd);
@@ -1975,8 +1974,8 @@ export function ExpenseAccountHierTable({
       if (l1Row.category_l1 === "IT수수료" && l1Row.children) {
         l1Row.children.sort((a, b) => {
           // viewMode에 따라 당년도 값 결정
-          const valueA = viewMode === "monthly" ? (a.curr_month ?? 0) : (a.curr_ytd ?? 0);
-          const valueB = viewMode === "monthly" ? (b.curr_month ?? 0) : (b.curr_ytd ?? 0);
+          const valueA = viewMode !== "ytd" ? (a.curr_month ?? 0) : (a.curr_ytd ?? 0);
+          const valueB = viewMode !== "ytd" ? (b.curr_month ?? 0) : (b.curr_ytd ?? 0);
           
           // 내림차순 (큰 금액부터)
           return valueB - valueA;
@@ -2034,7 +2033,7 @@ export function ExpenseAccountHierTable({
     const traverse = (rows: ExpenseAccountRow[]) => {
       rows.forEach((row) => {
         let shouldHide = false;
-        if (viewMode === "monthly") {
+        if (viewMode !== "ytd") {
           shouldHide = (row.curr_month ?? 0) === 0 && (row.prev_month ?? 0) === 0;
         } else if (is2026AnnualOnly) {
           shouldHide = (row.prev_year_annual ?? 0) === 0 && (row.curr_year_annual ?? 0) === 0;
@@ -2368,7 +2367,7 @@ export function ExpenseAccountHierTable({
   const computeTotals = useMemo(() => {
     const leaves = getLeafNodes(hierarchicalData);
     
-    if (viewMode === "monthly") {
+    if (viewMode !== "ytd") {
       // 당월 모드
       const prevTotal = leaves.reduce((sum, leaf) => sum + leaf.prev_month, 0);
       const currTotal = leaves.reduce((sum, leaf) => sum + leaf.curr_month, 0);
@@ -2517,33 +2516,17 @@ export function ExpenseAccountHierTable({
               </h2>
               <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-1.5 rounded-full border border-slate-600 bg-slate-700/50">
                 <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-slate-200" />
-                <span className="text-[13.5px] sm:text-[15px] font-medium text-slate-200">{is2026AnnualOnly ? t("2026년 연간기준", lang) : `${year}${t("년", lang)} ${month}${t("월", lang)} ${t("기준", lang)}`}</span>
+                <span className="text-[13.5px] sm:text-[15px] font-medium text-slate-200">
+                  {is2026AnnualOnly
+                    ? t("2026년 연간기준", lang)
+                    : viewMode === "monthly" ? `${year}${t("년", lang)} ${month}${t("월", lang)} ${t("기준", lang)}`
+                    : viewMode === "ytd" ? `${year}${t("년", lang)} 1~${month}${t("월", lang)} ${t("누적", lang)}`
+                    : `${year}${t("년", lang)} ${viewMode.slice(1)}${t("분기", lang)} ${t("기준", lang)}`}
+                </span>
               </div>
             </div>
-            {/* 우측: 탭과 버튼 */}
+            {/* 우측: 현재 모드 표시 (상단 페이지 탭에서 이미 전환하므로 내부 탭은 제거) */}
             <div className="flex items-center gap-2 sm:gap-3">
-              {!is2026AnnualOnly && (
-                <Tabs value={viewMode} onValueChange={(v) => {
-                  const m = v as "monthly" | "ytd" | "annual";
-                  setViewMode(m);
-                  if (onModeChange && (m === "monthly" || m === "ytd")) onModeChange(m);
-                }}>
-                  <TabsList className="bg-slate-700/50 p-1 sm:p-1.5 rounded-xl border border-slate-600 shadow-md">
-                    <TabsTrigger 
-                      value="monthly"
-                      className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-lg font-semibold text-[13.5px] sm:text-[15px] transition-all duration-300 ease-in-out hover:bg-slate-600 hover:shadow-sm data-[active=true]:bg-slate-600 data-[active=true]:text-slate-50 data-[active=true]:shadow-lg data-[active=true]:scale-105 text-slate-200 data-[active=false]:text-slate-300"
-                    >
-                      {t("당월", lang)}
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="ytd"
-                      className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-5 md:py-2.5 rounded-lg font-semibold text-[13.5px] sm:text-[15px] transition-all duration-300 ease-in-out hover:bg-slate-600 hover:shadow-sm data-[active=true]:bg-slate-600 data-[active=true]:text-slate-50 data-[active=true]:shadow-lg data-[active=true]:scale-105 text-slate-200 data-[active=false]:text-slate-300"
-                    >
-                      {t("누적(YTD)", lang)}
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              )}
               {is2026AnnualOnly && (
                 <span className="text-[13.5px] sm:text-[15px] font-medium text-slate-200 px-2 py-1 sm:px-3 sm:py-1.5 md:px-4 md:py-2 rounded-lg border border-slate-600 bg-slate-700/50">
                   {t("연간 계획 (2025 실적 vs 2026 계획)", lang)}
@@ -2576,7 +2559,7 @@ export function ExpenseAccountHierTable({
       <div className="overflow-x-auto bg-white">
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
-            {viewMode === "monthly" && !is2026AnnualOnly ? (
+            {viewMode !== "ytd" && !is2026AnnualOnly ? (
               <>
                 {/* 당월 모드: 구분 15% + 당월 데이터 4개 각 10% + 설명 45% */}
                 <col style={{ width: "15%" }} />
@@ -2653,10 +2636,10 @@ export function ExpenseAccountHierTable({
                     {t("구분", lang)}
               </th>
               <th className="border-r border-slate-600"></th>
-              {viewMode === "monthly" ? (
+              {viewMode !== "ytd" ? (
                 <>
                   <th colSpan={4} className="border-r border-slate-600 px-2 py-1.5 sm:px-3 sm:py-2 text-center text-[12px] sm:text-[13.5px] md:text-[15px] font-semibold text-slate-50">
-                    {t("당월 데이터", lang)}
+                    {viewMode === "monthly" ? t("당월 데이터", lang) : `${viewMode.slice(1)}${t("분기 데이터", lang)}`}
                   </th>
                   <th className="border-r border-slate-600"></th>
                   <th rowSpan={2} className="border-r border-slate-600 px-2 py-1.5 sm:px-3 sm:py-2 text-left text-[12px] sm:text-[13.5px] md:text-[15px] font-semibold text-slate-50">
@@ -2685,13 +2668,13 @@ export function ExpenseAccountHierTable({
             {!is2026AnnualOnly && (
             <tr className="bg-slate-800 border-b-2 border-slate-600">
               <th className="border-r border-slate-600"></th>
-              {viewMode === "monthly" ? (
+              {viewMode !== "ytd" ? (
                 <>
                   <th className="border-r border-slate-600 px-2 py-1.5 sm:px-3 sm:py-2 text-center text-[12px] sm:text-[13.5px] md:text-[15px] font-semibold text-slate-50">
                     {t("전년", lang)}
                   </th>
                   <th className="border-r border-slate-600 px-2 py-1.5 sm:px-3 sm:py-2 text-center text-[12px] sm:text-[13.5px] md:text-[15px] font-semibold text-slate-50">
-                    {t("당월", lang)}
+                    {viewMode === "monthly" ? t("당월", lang) : `${viewMode.slice(1)}${t("분기", lang)}`}
                   </th>
                   <th className="border-r border-slate-600 px-2 py-1.5 sm:px-3 sm:py-2 text-center text-[12px] sm:text-[13.5px] md:text-[15px] font-semibold text-slate-50">
                     {t("차이(금액)", lang)}
@@ -2793,7 +2776,7 @@ export function ExpenseAccountHierTable({
                     {totalDescription}
                   </td>
                 </>
-              ) : viewMode === "monthly" ? (
+              ) : viewMode !== "ytd" ? (
                 <>
                   <td className="border-r border-gray-200 px-2 py-1.5 sm:px-3 sm:py-2 text-[13.5px] sm:text-[15px] text-right font-medium">
                     {formatK(computeTotals.prevTotal)}
@@ -2926,8 +2909,8 @@ export function ExpenseAccountHierTable({
               const fontWeight = getFontWeight(row.level);
               const displayText = getDisplayText(row);
 
-              const prevValue = (viewMode === "monthly" ? row.prev_month : row.prev_ytd) ?? 0;
-              const currValue = (viewMode === "monthly" ? row.curr_month : row.curr_ytd) ?? 0;
+              const prevValue = (viewMode !== "ytd" ? row.prev_month : row.prev_ytd) ?? 0;
+              const currValue = (viewMode !== "ytd" ? row.curr_month : row.curr_ytd) ?? 0;
               const diff = getDifference(currValue, prevValue);
               const yoy = getYOY(currValue, prevValue);
 
@@ -2998,7 +2981,7 @@ export function ExpenseAccountHierTable({
                   {!is2026AnnualOnly && <td className="border-r border-gray-200"></td>}
                   
                   {/* 당월/누적 데이터 영역 */}
-                  {viewMode === "monthly" ? (
+                  {viewMode !== "ytd" ? (
                     <>
                       {/* 당월 모드: 전년, 당월, 차이, YOY */}
                       <td className="border-r border-gray-100 px-2 py-1.5 sm:px-3 sm:py-2 text-[13.5px] sm:text-[15px] text-right font-medium">

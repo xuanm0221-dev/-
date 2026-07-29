@@ -1721,7 +1721,7 @@ interface AIReportModalProps {
   onClose: () => void;
   year: number;
   month: number;
-  mode: "monthly" | "ytd";
+  mode: import("@/lib/expenseData").Mode;
   yearType: "actual" | "plan";
 }
 
@@ -1746,7 +1746,11 @@ export function AIReportModal({
 
   const report = useMemo(() => parseReport(rawText), [rawText]);
 
-  const cacheKey = `${year}-${month}-${mode}-${yearType}`;
+  // 분기 모드는 해당 분기 마지막 월의 YTD 리포트를 사용 (사전 생성된 파일이 있어야 함)
+  const QUARTER_END_MONTH: Record<string, number> = { q1: 3, q2: 6, q3: 9, q4: 12 };
+  const effectiveMode: "monthly" | "ytd" = mode === "monthly" ? "monthly" : "ytd";
+  const effectiveMonth = QUARTER_END_MONTH[mode] ?? month;
+  const cacheKey = `${year}-${effectiveMonth}-${effectiveMode}-${yearType}`;
 
   const generate = useCallback(async () => {
     if (cacheRef.current[cacheKey]) {
@@ -1767,7 +1771,7 @@ export function AIReportModal({
 
     abortRef.current = new AbortController();
     try {
-      const params = new URLSearchParams({ year: String(year), month: String(month), mode, yearType });
+      const params = new URLSearchParams({ year: String(year), month: String(effectiveMonth), mode: effectiveMode, yearType });
       const res = await fetch(`/api/ai-report?${params.toString()}`, {
         signal: abortRef.current.signal,
       });
@@ -1796,7 +1800,7 @@ export function AIReportModal({
     } finally {
       setIsLoading(false);
     }
-  }, [year, month, mode, yearType, cacheKey]);
+  }, [year, effectiveMonth, effectiveMode, yearType, cacheKey]);
 
   useEffect(() => {
     if (isOpen) generate();

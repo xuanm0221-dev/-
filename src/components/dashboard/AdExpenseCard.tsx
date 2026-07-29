@@ -20,7 +20,7 @@ interface AdExpenseCardProps {
   adNode?: ExpenseAccountRow | null;
   yearType?: 'actual' | 'plan';
   /** 실적(actual)일 때만 전달: 당월/누적 구분 */
-  mode?: "monthly" | "ytd";
+  mode?: import("@/lib/expenseData").Mode;
   sales?: number;
   prevSales?: number;
 }

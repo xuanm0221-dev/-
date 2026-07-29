@@ -42,7 +42,7 @@ interface BizUnitSwitchProps {
   currentBizUnit: BizUnit;
   year: number;
   month: number;
-  mode: "monthly" | "ytd";
+  mode: import("@/lib/expenseData").Mode;
   yearType?: 'actual' | 'plan';
 }
 

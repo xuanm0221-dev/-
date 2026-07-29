@@ -21,7 +21,27 @@ export function getAggregatedData(): AggregatedData {
   return getData();
 }
 
-export type Mode = "monthly" | "ytd";
+export type Mode = "monthly" | "ytd" | "q1" | "q2" | "q3" | "q4";
+
+// mode → 대상 월 범위 (start, end) + 헤드카운트 기준 월 (refMonth)
+// - monthly: 그 달만 (start=end=refMonth=month)
+// - ytd:     1~month 누적 (refMonth=month = period end)
+// - q1~q4:   해당 분기 3개월 (refMonth = 분기 마지막 월)
+export function getMonthRange(mode: Mode, month: number): { start: number; end: number; refMonth: number } {
+  switch (mode) {
+    case "monthly": return { start: month, end: month, refMonth: month };
+    case "ytd":     return { start: 1,     end: month, refMonth: month };
+    case "q1":      return { start: 1,     end: 3,     refMonth: 3 };
+    case "q2":      return { start: 4,     end: 6,     refMonth: 6 };
+    case "q3":      return { start: 7,     end: 9,     refMonth: 9 };
+    case "q4":      return { start: 10,    end: 12,    refMonth: 12 };
+  }
+}
+
+// 단일 월 모드 여부 (mode === "monthly")
+function isSingleMonth(mode: Mode): boolean {
+  return mode === "monthly";
+}
 
 // 법인 비용/인원수 계산에 포함할 사업부 목록 (공통 포함)
 const CORPORATE_BIZ_UNITS = ["MLB", "KIDS", "DISCOVERY", "공통"] as const;
@@ -118,15 +138,14 @@ export function getMonthlyTotal(
         item.year === year &&
         item.year_type === yearType
     );
-    if (mode === "monthly") {
-      corporateFiltered = corporateFiltered.filter((item) => item.month === month);
-    } else {
-      corporateFiltered = corporateFiltered.filter((item) => item.month <= month);
+    {
+      const { start, end } = getMonthRange(mode, month);
+      corporateFiltered = corporateFiltered.filter((item) => item.month >= start && item.month <= end);
     }
     if (corporateFiltered.length === 0) {
       return null;
     }
-    if (mode === "ytd") {
+    if (!isSingleMonth(mode)) {
       // 판매매출은 공통 제외하고 브랜드만 합산
       const salesSum = corporateFiltered
         .filter(item => CORPORATE_SALES_BIZ_UNITS.includes(item.biz_unit as any))
@@ -187,16 +206,15 @@ export function getMonthlyTotal(
         item.year === year &&
         item.year_type === yearType
     );
-    if (mode === "monthly") {
-      commonFiltered = commonFiltered.filter((item) => item.month === month);
-    } else {
-      commonFiltered = commonFiltered.filter((item) => item.month <= month);
+    {
+      const { start, end } = getMonthRange(mode, month);
+      commonFiltered = commonFiltered.filter((item) => item.month >= start && item.month <= end);
     }
     if (commonFiltered.length === 0) {
       return null;
     }
     let result: MonthlyTotal;
-    if (mode === "ytd") {
+    if (!isSingleMonth(mode)) {
       result = commonFiltered.reduce(
         (acc, item) => ({
           ...acc,
@@ -225,10 +243,10 @@ export function getMonthlyTotal(
         item.year === year &&
         item.year_type === yearType
     );
-    const supportFiltered =
-      mode === "monthly"
-        ? supportDetail.filter((item) => item.month === month)
-        : supportDetail.filter((item) => item.month <= month);
+    const supportFiltered = (() => {
+      const { start, end } = getMonthRange(mode, month);
+      return supportDetail.filter((item) => item.month >= start && item.month <= end);
+    })();
     const supportAmount = supportFiltered.reduce(
       (s, i) => s + (i.amount || 0),
       0
@@ -245,19 +263,18 @@ export function getMonthlyTotal(
       item.year_type === yearType
   );
 
-  if (mode === "monthly") {
-    filtered = filtered.filter((item) => item.month === month);
-  } else {
-    // YTD: 1월부터 해당 월까지
-    filtered = filtered.filter((item) => item.month <= month);
+  {
+    // monthly=단일 월, ytd=1~월 누적, q1~q4=해당 분기 3개월
+    const { start, end } = getMonthRange(mode, month);
+    filtered = filtered.filter((item) => item.month >= start && item.month <= end);
   }
 
   if (filtered.length === 0) {
     return null;
   }
 
-  // YTD인 경우 합계 계산
-  if (mode === "ytd") {
+  // 다중 월(YTD·분기) 합계 계산
+  if (!isSingleMonth(mode)) {
     if (filtered.length === 0) {
       return null;
     }
@@ -335,10 +352,9 @@ export function getMonthlyAggregatedByCategory(
         item.year === year &&
         item.year_type === yearType
     );
-    if (mode === "monthly") {
-      corporateFiltered = corporateFiltered.filter((item) => item.month === month);
-    } else {
-      corporateFiltered = corporateFiltered.filter((item) => item.month <= month);
+    {
+      const { start, end } = getMonthRange(mode, month);
+      corporateFiltered = corporateFiltered.filter((item) => item.month >= start && item.month <= end);
     }
     const grouped = new Map<string, MonthlyAggregated>();
     corporateFiltered.forEach((item) => {
@@ -364,10 +380,9 @@ export function getMonthlyAggregatedByCategory(
         item.year === year &&
         item.year_type === yearType
     );
-    if (mode === "monthly") {
-      commonFiltered = commonFiltered.filter((item) => item.month === month);
-    } else {
-      commonFiltered = commonFiltered.filter((item) => item.month <= month);
+    {
+      const { start, end } = getMonthRange(mode, month);
+      commonFiltered = commonFiltered.filter((item) => item.month >= start && item.month <= end);
     }
     const grouped = new Map<string, MonthlyAggregated>();
     commonFiltered.forEach((item) => {
@@ -386,10 +401,10 @@ export function getMonthlyAggregatedByCategory(
         item.year === year &&
         item.year_type === yearType
     );
-    const supportFiltered =
-      mode === "monthly"
-        ? supportDetail.filter((item) => item.month === month)
-        : supportDetail.filter((item) => item.month <= month);
+    const supportFiltered = (() => {
+      const { start, end } = getMonthRange(mode, month);
+      return supportDetail.filter((item) => item.month >= start && item.month <= end);
+    })();
     supportFiltered.forEach((item) => {
       const key = item.cost_lv1 || "";
       if (!key) return;
@@ -423,10 +438,9 @@ export function getMonthlyAggregatedByCategory(
       item.year_type === yearType
   );
 
-  if (mode === "monthly") {
-    filtered = filtered.filter((item) => item.month === month);
-  } else {
-    filtered = filtered.filter((item) => item.month <= month);
+  {
+    const { start, end } = getMonthRange(mode, month);
+    filtered = filtered.filter((item) => item.month >= start && item.month <= end);
   }
 
   // monthly와 ytd 모두 대분류별로 합계 계산
@@ -539,12 +553,11 @@ export function getCategoryDetail(
         (costLv1 === "" || item.cost_lv1 === costLv1) &&
         item.year_type === yearType
     );
-    if (mode === "monthly") {
-      corporateFiltered = corporateFiltered.filter((item) => item.month === month);
-    } else {
-      corporateFiltered = corporateFiltered.filter((item) => item.month <= month);
+    {
+      const { start, end } = getMonthRange(mode, month);
+      corporateFiltered = corporateFiltered.filter((item) => item.month >= start && item.month <= end);
     }
-    if (mode === "ytd") {
+    if (!isSingleMonth(mode)) {
       const grouped = new Map<string, CategoryDetail>();
       corporateFiltered.forEach((item) => {
         const key = `${item.biz_unit || ""}|${item.cost_lv1 || ""}|${item.cost_lv2 || ""}|${item.cost_lv3 || ""}`;
@@ -582,10 +595,9 @@ export function getCategoryDetail(
     filtered = [...filtered, ...commonAsMLB];
   }
 
-  if (mode === "monthly") {
-    filtered = filtered.filter((item) => item.month === month);
-  } else {
-    filtered = filtered.filter((item) => item.month <= month);
+  {
+    const { start, end } = getMonthRange(mode, month);
+    filtered = filtered.filter((item) => item.month >= start && item.month <= end);
   }
 
   // 디버깅: 필터링 결과 확인
@@ -599,7 +611,7 @@ export function getCategoryDetail(
     }
   }
 
-  if (mode === "ytd") {
+  if (!isSingleMonth(mode)) {
     // YTD: 사업부구분, 중분류, 소분류별로 합계
     const grouped = new Map<string, CategoryDetail>();
     filtered.forEach((item) => {
@@ -657,7 +669,7 @@ export function getMonthlyTrend(
       item.year_type === yearType
   );
 
-  if (mode === "ytd") {
+  if (!isSingleMonth(mode)) {
     // YTD: 각 월까지의 누적값 계산
     const result: MonthlyTotal[] = [];
     let cumulativeAmount = 0;
@@ -838,6 +850,20 @@ export function getAvailableYearOptions(): YearOption[] {
 export function getAvailableYears(): number[] {
   const data = getData();
   return data.metadata.years.sort((a, b) => b - a);
+}
+
+// 해당 연도에서 3개월이 모두 amount>0인 분기만 반환 (예: 1~5월 데이터면 [1] = 1분기만 완성)
+export function getAvailableQuarters(year: number, yearType: 'actual' | 'plan' = 'actual'): (1 | 2 | 3 | 4)[] {
+  const months = new Set(getAvailableMonths(year, yearType));
+  const result: (1 | 2 | 3 | 4)[] = [];
+  const check = (q: 1 | 2 | 3 | 4, ms: number[]) => {
+    if (ms.every((m) => months.has(m))) result.push(q);
+  };
+  check(1, [1, 2, 3]);
+  check(2, [4, 5, 6]);
+  check(3, [7, 8, 9]);
+  check(4, [10, 11, 12]);
+  return result;
 }
 
 export function getAvailableMonths(year: number, yearType: 'actual' | 'plan' = 'actual'): number[] {

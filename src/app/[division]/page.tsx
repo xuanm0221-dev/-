@@ -67,6 +67,7 @@ import {
   calculatePerPersonCost,
   getAvailableYears,
   getAvailableMonths,
+  getAvailableQuarters,
   getAvailableYearOptions,
   type BizUnit,
   type Mode,
@@ -179,6 +180,8 @@ export default function DivisionPage() {
   const isCommon = bizUnit === "공통";
   const isCorporate = bizUnit === "법인";
   const isBrand = !isCommon && !isCorporate;
+  // 법인 탭 전용: 완전한 3개월 데이터가 있는 분기만 노출
+  const availableQuarters = isCorporate ? getAvailableQuarters(yearOption.year, yearOption.type) : [];
   const is2026Annual = year === 2026 && yearType === 'plan';
 
   // 브랜드·공통·2026 연간이 아니면 표 연간 합계 캐시 초기화
@@ -632,6 +635,16 @@ export default function DivisionPage() {
               >
                 {t("당월", lang)}
               </TabsTrigger>
+              {/* 법인 탭 전용: 3개월 완성된 분기만 노출 */}
+              {isCorporate && !isPlanYear && availableQuarters.map((q) => (
+                <TabsTrigger
+                  key={`q${q}`}
+                  value={`q${q}`}
+                  className="text-xs px-2 py-1 rounded-md"
+                >
+                  {q}{t("분기", lang)}
+                </TabsTrigger>
+              ))}
               <TabsTrigger value="ytd" className="text-xs px-2 py-1 rounded-md">
                 {isPlanYear ? t("연간", lang) : t("누적 (YTD)", lang)}
               </TabsTrigger>
