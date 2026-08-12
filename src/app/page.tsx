@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, BookmarkCheck, Bot, Microscope, type LucideIcon } from "lucide-react";
+import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, Bot, Microscope, type LucideIcon } from "lucide-react";
 import React from "react";
 
 // 야구공 아이콘 컴포넌트 (LucideIcon 타입과 호환)
@@ -60,7 +60,7 @@ import {
 } from "@/lib/expenseData";
 import { calculateYOY } from "@/lib/utils";
 import { getAnnualData, getMonthlyTotal, type BizUnit } from "@/lib/expenseData";
-import { getSavedDefault, saveDefault } from "@/lib/dashboardDefaults";
+import { getLatestYearOption, getLatestMonth } from "@/lib/dashboardDefaults";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
 import { LanguageToggle } from "@/components/dashboard/LanguageToggle";
@@ -76,18 +76,11 @@ const MAIN_BRAND_CONFIG = [
 export default function HomePage() {
   const { lang } = useLanguage();
   const availableYearOptions = getAvailableYearOptions();
-  const saved = getSavedDefault();
-  const savedOption = saved ? availableYearOptions.find((o) => o.year === saved.year && o.type === saved.type) : null;
-  const savedMonths = savedOption ? getAvailableMonths(savedOption.year, savedOption.type) : [];
-  const savedValid = !!saved && !!savedOption && savedMonths.length > 0 && savedMonths.includes(saved.month);
 
-  const fallbackYearOption = availableYearOptions.find((opt) => opt.year === 2026 && opt.type === "actual") || (availableYearOptions[0] ?? { year: 2025, type: "actual" as const, display: "2025년(실적)" });
-  const initialYearOption = savedValid ? savedOption! : fallbackYearOption;
-  // 저장된 기본값이 없으면 선택된 연도의 가장 최근 가용 월로
-  const initialAvailableMonths = getAvailableMonths(initialYearOption.year, initialYearOption.type);
-  const latestAvailableMonth = initialAvailableMonths.length > 0 ? initialAvailableMonths[initialAvailableMonths.length - 1] : 1;
-  const initialMonth = savedValid ? saved!.month : latestAvailableMonth;
-  const initialMode: Mode = savedValid ? saved!.mode : "monthly";
+  // 진입 시 항상 최신 실적 연도 + 가장 최근 가용 월
+  const initialYearOption = getLatestYearOption();
+  const initialMonth = getLatestMonth(initialYearOption);
+  const initialMode: Mode = "monthly";
 
   const [yearOption, setYearOption] = useState<YearOption>(initialYearOption);
   const [month, setMonth] = useState<number>(initialMonth);
@@ -99,11 +92,6 @@ export default function HomePage() {
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
   const availableMonths = getAvailableMonths(yearOption.year, yearOption.type);
   const homeExportRef = useRef<HTMLDivElement>(null);
-
-  const handleSaveDefault = useCallback(() => {
-    saveDefault(yearOption.year, yearOption.type, month, mode);
-    window.alert(t("기본 날짜가 저장되었습니다. 다음 접속 시 이 날짜가 적용됩니다.", lang));
-  }, [yearOption.year, yearOption.type, month, mode, lang]);
 
   const handleDownloadHtml = useCallback(() => {
     if (!homeExportRef.current) return;
@@ -217,16 +205,6 @@ export default function HomePage() {
                   </TabsList>
                 </Tabs>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleSaveDefault}
-                className="flex-shrink-0 text-[10px] sm:text-xs"
-              >
-                <BookmarkCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
-                {t("이 날짜를 기본으로 저장", lang)}
-              </Button>
               <Button
                 type="button"
                 size="sm"

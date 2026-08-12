@@ -1,48 +1,30 @@
-import type { Mode } from "./expenseData";
+import {
+  getAvailableMonths,
+  getAvailableYearOptions,
+  type YearOption,
+} from "./expenseData";
 
-const STORAGE_KEY = "expense-dashboard-default";
-const VALID_MODES: Mode[] = ["monthly", "ytd", "q1", "q2", "q3", "q4"];
+const FALLBACK_YEAR_OPTION: YearOption = {
+  year: 2025,
+  type: "actual",
+  display: "2025년(실적)",
+};
 
-export interface SavedDashboardDefault {
-  year: number;
-  type: "actual" | "plan";
-  month: number;
-  mode: Mode;
+/**
+ * 대시보드 진입 시 기본으로 보여줄 연도 옵션.
+ * 실적 데이터가 존재하는 가장 최근 연도를 사용한다.
+ * (getAvailableYearOptions 는 연도 내림차순 정렬이므로 첫 매칭이 최신)
+ */
+export function getLatestYearOption(): YearOption {
+  const options = getAvailableYearOptions();
+  const latestActual = options.find(
+    (opt) => opt.type === "actual" && getAvailableMonths(opt.year, opt.type).length > 0
+  );
+  return latestActual ?? options[0] ?? FALLBACK_YEAR_OPTION;
 }
 
-export function getSavedDefault(): SavedDashboardDefault | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as SavedDashboardDefault;
-    if (
-      typeof parsed?.year === "number" &&
-      (parsed.type === "actual" || parsed.type === "plan") &&
-      typeof parsed?.month === "number" &&
-      VALID_MODES.includes(parsed.mode)
-    ) {
-      return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveDefault(
-  year: number,
-  type: "actual" | "plan",
-  month: number,
-  mode: Mode
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ year, type, month, mode })
-    );
-  } catch {
-    // ignore
-  }
+/** 해당 연도에서 데이터가 있는 가장 최근 월 */
+export function getLatestMonth(yearOption: YearOption): number {
+  const months = getAvailableMonths(yearOption.year, yearOption.type);
+  return months.length > 0 ? months[months.length - 1] : 1;
 }

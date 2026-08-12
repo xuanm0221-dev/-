@@ -74,7 +74,7 @@ import {
   type YearOption,
 } from "@/lib/expenseData";
 import { formatK, formatPercent, formatPercentPoint } from "@/lib/utils";
-import { getSavedDefault } from "@/lib/dashboardDefaults";
+import { getLatestYearOption, getLatestMonth } from "@/lib/dashboardDefaults";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t, getDisplayLabel } from "@/lib/translations";
 import { LanguageToggle } from "@/components/dashboard/LanguageToggle";
@@ -123,19 +123,13 @@ export default function DivisionPage() {
   const urlYearOption = yearParam && typeParam
     ? availableYearOptions.find((opt) => opt.year === parseInt(yearParam) && opt.type === typeParam)
     : null;
-  const saved = getSavedDefault();
-  const savedOption = saved ? availableYearOptions.find((o) => o.year === saved.year && o.type === saved.type) : null;
-  const savedMonths = savedOption ? getAvailableMonths(savedOption.year, savedOption.type) : [];
-  const savedValid = !!saved && !!savedOption && savedMonths.length > 0 && savedMonths.includes(saved.month);
-
-  const fallbackYearOption = availableYearOptions.find((opt) => opt.year === 2026 && opt.type === "actual") || availableYearOptions[0] || { year: 2025, type: "actual" as const, display: "2025년(실적)" };
-  const initialYearOption = urlYearOption || (savedValid ? savedOption! : fallbackYearOption);
-  // URL/저장값이 없으면 선택된 연도의 가장 최근 가용 월로
-  const initialAvailableMonths = getAvailableMonths(initialYearOption.year, initialYearOption.type);
-  const latestAvailableMonth = initialAvailableMonths.length > 0 ? initialAvailableMonths[initialAvailableMonths.length - 1] : 1;
-  const initialMonth = (monthParam && !isNaN(parseInt(monthParam))) ? parseInt(monthParam) : (savedValid ? saved!.month : latestAvailableMonth);
+  // URL 파라미터가 없으면 항상 최신 실적 연도 + 가장 최근 가용 월
+  const initialYearOption = urlYearOption || getLatestYearOption();
+  const initialMonth = (monthParam && !isNaN(parseInt(monthParam)))
+    ? parseInt(monthParam)
+    : getLatestMonth(initialYearOption);
   const defaultMode: Mode = initialYearOption.type === "actual" ? "ytd" : "monthly";
-  const initialMode: Mode = (modeParam === "monthly" || modeParam === "ytd") ? modeParam : (savedValid ? saved!.mode : defaultMode);
+  const initialMode: Mode = (modeParam === "monthly" || modeParam === "ytd") ? modeParam : defaultMode;
 
   const [yearOption, setYearOption] = useState<YearOption>(initialYearOption);
   const [month, setMonth] = useState<number>(initialMonth);
