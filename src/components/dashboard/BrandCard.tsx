@@ -35,6 +35,8 @@ interface BrandCardProps {
   brandName: string;
   icon: LucideIcon;
   yearType?: 'actual' | 'plan';
+  /** 헤더 브랜드명 자리를 사용자 정의 노드로 교체 (예: 드롭다운 셀렉터) */
+  titleControl?: React.ReactNode;
 }
 
 /** 영업비 상세보기 표시 순서 */
@@ -82,6 +84,7 @@ export function BrandCard({
   brandName,
   icon: Icon,
   yearType = 'actual',
+  titleControl,
 }: BrandCardProps) {
   const { lang } = useLanguage();
   const isPlanYear = year === 2026 && yearType === 'plan';
@@ -141,6 +144,12 @@ export function BrandCard({
   const prevCategoryMap = new Map(
     prevCategoryData.map((item) => [item.cost_lv1, item])
   );
+
+  // 연간 계획 (YTD 뷰용) — 2026년 plan × 12월 YTD 기준
+  const annualPlanData = yearType === 'actual'
+    ? getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", "plan")
+    : [];
+  const annualPlanMap = new Map(annualPlanData.map((item) => [item.cost_lv1, item.amount]));
 
   const prevTotalCost = prevCategoryData.reduce(
     (sum, item) => sum + item.amount,
@@ -284,12 +293,17 @@ export function BrandCard({
           const prevAmount = prev?.amount ?? 0;
           const amountDiff = currentAmount - prevAmount;
           const yoy = calculateYOY(currentAmount, prevAmount);
+          const annualPlan = annualPlanMap.get(categoryName) ?? 0;
+          const usagePct = annualPlan > 0 ? (currentAmount / annualPlan) * 100 : null;
           return {
             label: categoryName,
             labelCn: cat.cost_lv1_cn,
             amount: formatK(cat.amount),
             amountDiff,
             yoy,
+            prevAmount,
+            annualPlan: annualPlan > 0 ? annualPlan : undefined,
+            usagePct,
           };
         })
     : EXPENSE_DETAIL_ORDER.filter((categoryName) => {
@@ -302,12 +316,17 @@ export function BrandCard({
         const prevAmount = prev?.amount ?? 0;
         const amountDiff = currentAmount - prevAmount;
         const yoy = calculateYOY(currentAmount, prevAmount);
+        const annualPlan = annualPlanMap.get(categoryName) ?? 0;
+        const usagePct = annualPlan > 0 ? (currentAmount / annualPlan) * 100 : null;
         return {
           label: getCategoryDisplayName(categoryName),
           labelCn: cat?.cost_lv1_cn,
           amount: formatK(currentAmount),
           amountDiff,
           yoy,
+          prevAmount,
+          annualPlan: annualPlan > 0 ? annualPlan : undefined,
+          usagePct,
         };
       });
 
@@ -341,6 +360,7 @@ export function BrandCard({
       mode={mode}
       yearType={yearType}
       isCommon={isCommon}
+      titleControl={titleControl}
     />
   );
 }

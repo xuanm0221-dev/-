@@ -1723,11 +1723,14 @@ interface AIReportModalProps {
   month: number;
   mode: import("@/lib/expenseData").Mode;
   yearType: "actual" | "plan";
+  /** true면 모달 오버레이 없이 인라인 렌더 (탭 내부용) */
+  inline?: boolean;
 }
 
 export function AIReportModal({
   isOpen,
   onClose,
+  inline = false,
   year,
   month,
   mode,
@@ -1930,33 +1933,35 @@ ${inner}
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative flex flex-col bg-gray-100 rounded-2xl shadow-2xl w-[96vw] max-w-6xl h-[94vh]">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-5 py-3 bg-white rounded-t-2xl border-b shrink-0">
-          <div className="flex items-center gap-2">
-            <Bot className="w-4 h-4 text-purple-600" />
-            <span className="font-bold text-gray-800 text-sm">
-              AI 리포트
-            </span>
-            <span className="text-[10px] text-gray-400 ml-1">
-              {year}년 {yearType === "plan" ? "예산" : "실적"} /{" "}
-              {mode === "ytd" ? "연누계" : `${month}월`}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {isGenerated && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                className="text-xs h-7 gap-1"
-              >
-                <Download className="w-3 h-3" />
-                HTML
-              </Button>
-            )}
+  const chrome = (
+    <div className={inline
+      ? "flex flex-col bg-gray-100 rounded-2xl border border-slate-200 w-full"
+      : "relative flex flex-col bg-gray-100 rounded-2xl shadow-2xl w-[96vw] max-w-6xl h-[94vh]"}>
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-5 py-3 bg-white rounded-t-2xl border-b shrink-0">
+        <div className="flex items-center gap-2">
+          <Bot className="w-4 h-4 text-purple-600" />
+          <span className="font-bold text-gray-800 text-sm">
+            AI 리포트
+          </span>
+          <span className="text-[10px] text-gray-400 ml-1">
+            {year}년 {yearType === "plan" ? "예산" : "실적"} /{" "}
+            {mode === "ytd" ? "연누계" : `${month}월`}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isGenerated && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownload}
+              className="text-xs h-7 gap-1"
+            >
+              <Download className="w-3 h-3" />
+              HTML
+            </Button>
+          )}
+          {!inline && (
             <button
               onClick={() => {
                 abortRef.current?.abort();
@@ -1966,11 +1971,12 @@ ${inner}
             >
               <X className="w-4 h-4" />
             </button>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Scrollable content */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4">
+      {/* Scrollable content */}
+      <div ref={scrollRef} className={inline ? "p-4" : "flex-1 overflow-y-auto p-4"}>
           {/* Loading initial */}
           {isLoading && rawText === "" && (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
@@ -2169,6 +2175,12 @@ ${inner}
           )}
         </div>
       </div>
+  );
+
+  if (inline) return chrome;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      {chrome}
     </div>
   );
 }

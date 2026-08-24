@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, Bot, Microscope, type LucideIcon } from "lucide-react";
+import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, Bot, Microscope, LineChart, BarChart2, Table as TableIcon, type LucideIcon } from "lucide-react";
 import React from "react";
 
 // 야구공 아이콘 컴포넌트 (LucideIcon 타입과 호환)
@@ -46,6 +46,17 @@ const BaseballIcon = React.forwardRef<SVGSVGElement, React.SVGProps<SVGSVGElemen
 
 BaseballIcon.displayName = "BaseballIcon";
 import { BrandCard } from "@/components/dashboard/BrandCard";
+import { BrandDropdown } from "@/components/dashboard/BrandDropdown";
+import { ExpenseAccountHierTable } from "@/components/dashboard/ExpenseAccountHierTable";
+import { AdSalesEfficiencyAnalysis } from "@/components/dashboard/AdSalesEfficiencyAnalysis";
+import { KpiCard } from "@/components/dashboard/KpiCard";
+import { LaborCostPerCapitaCard } from "@/components/dashboard/LaborCostPerCapitaCard";
+import { AdExpenseCard } from "@/components/dashboard/AdExpenseCard";
+import { ITFeeCard } from "@/components/dashboard/ITFeeCard";
+import { PaymentFeeCard } from "@/components/dashboard/PaymentFeeCard";
+import { CategoryExpenseCard } from "@/components/dashboard/CategoryExpenseCard";
+import { MonthlyStackedChart } from "@/components/dashboard/MonthlyStackedChart";
+import { CategoryDrilldown } from "@/components/dashboard/CategoryDrilldown";
 import { ReportModal } from "@/components/dashboard/ReportModal";
 import { AIReportModal } from "@/components/dashboard/AIReportModal";
 import { DeepAnalysisModal } from "@/components/dashboard/DeepAnalysisModal";
@@ -54,6 +65,7 @@ import { Button } from "@/components/ui/button";
 import {
   getAvailableYears,
   getAvailableMonths,
+  getAvailableQuarters,
   getAvailableYearOptions,
   type Mode,
   type YearOption,
@@ -88,9 +100,15 @@ export default function HomePage() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isAIReportOpen, setIsAIReportOpen] = useState(false);
   const [isDeepAnalysisOpen, setIsDeepAnalysisOpen] = useState(false);
+  // 홈 상단 카드에서 선택 중인 사업부 (드롭다운 셀렉터로 전환)
+  const [selectedBrandBizUnit, setSelectedBrandBizUnit] = useState<BizUnit>("법인");
+  // 우측 5-탭 스위처 선택 상태
+  type RightTab = "detail" | "adEfficiency" | "kpi" | "ai" | "deep";
+  const [rightTab, setRightTab] = useState<RightTab>("detail");
 
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
   const availableMonths = getAvailableMonths(yearOption.year, yearOption.type);
+  const availableQuarters = getAvailableQuarters(yearOption.year, yearOption.type);
   const homeExportRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadHtml = useCallback(() => {
@@ -192,8 +210,8 @@ export default function HomePage() {
                   className="flex-shrink-0"
                 >
                   <TabsList>
-                    <TabsTrigger 
-                      value="monthly" 
+                    <TabsTrigger
+                      value="monthly"
                       disabled={isPlanYear}
                       className={isPlanYear ? 'cursor-not-allowed opacity-50' : ''}
                     >
@@ -202,29 +220,24 @@ export default function HomePage() {
                     <TabsTrigger value="ytd">
                       {isPlanYear ? t("연간", lang) : t("누적(YTD)", lang)}
                     </TabsTrigger>
+                    {/* 실적일 때만 분기 탭 노출 (가용한 분기 강조, 나머지 disabled) */}
+                    {!isPlanYear && ([1, 2, 3, 4] as const).map((q) => {
+                      const enabled = availableQuarters.includes(q);
+                      return (
+                        <TabsTrigger
+                          key={`q${q}`}
+                          value={`q${q}`}
+                          disabled={!enabled}
+                          className={!enabled ? 'cursor-not-allowed opacity-40' : ''}
+                        >
+                          {q}{t("분기", lang)}
+                        </TabsTrigger>
+                      );
+                    })}
                   </TabsList>
                 </Tabs>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setIsAIReportOpen(true)}
-                className="flex-shrink-0 text-[10px] sm:text-xs bg-blue-50 text-blue-700 border border-blue-300 hover:bg-blue-100"
-                variant="outline"
-              >
-                <Bot className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
-                AI 보고서
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setIsDeepAnalysisOpen(true)}
-                className="flex-shrink-0 text-[10px] sm:text-xs bg-violet-50 text-violet-700 border border-violet-300 hover:bg-violet-100"
-                variant="outline"
-              >
-                <Microscope className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
-                심층분석
-              </Button>
+              {/* AI 보고서/심층분석 버튼 제거 — 우측 탭에서 직접 열람 */}
               {isPlanYear && (
                 <>
                   <Button
@@ -271,24 +284,191 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* HTML 다운로드 대상: 브랜드 카드 (ref는 2026 예산일 때만) */}
+        {/* HTML 다운로드 대상: 사업부 카드 + 상세표 (드롭다운으로 사업부 전환) */}
         <div ref={isPlanYear ? homeExportRef : undefined}>
-          {/* 브랜드 카드 그리드 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-            {MAIN_BRAND_CONFIG.map((config) => (
-              <BrandCard
-                key={config.bizUnit}
-                bizUnit={config.bizUnit}
-                year={yearOption.year}
-                month={month}
-                mode={mode}
-                yearType={yearOption.type}
-                brandColor={config.brandColor}
-                brandInitial={config.brandInitial}
-                brandName={t(config.brandName, lang)}
-                icon={config.icon}
-              />
-            ))}
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,1fr)_2fr] gap-6 mb-8">
+            {/* 좌: 사업부 선택 카드 (드롭다운으로 전환) */}
+            <div>
+              {(() => {
+                const cfg =
+                  MAIN_BRAND_CONFIG.find((c) => c.bizUnit === selectedBrandBizUnit) ??
+                  MAIN_BRAND_CONFIG[0];
+                return (
+                  <BrandCard
+                    key={cfg.bizUnit}
+                    bizUnit={cfg.bizUnit}
+                    year={yearOption.year}
+                    month={month}
+                    mode={mode}
+                    yearType={yearOption.type}
+                    brandColor={cfg.brandColor}
+                    brandInitial={cfg.brandInitial}
+                    brandName={t(cfg.brandName, lang)}
+                    icon={cfg.icon}
+                    titleControl={
+                      <BrandDropdown
+                        value={selectedBrandBizUnit}
+                        options={MAIN_BRAND_CONFIG.map((c) => ({ bizUnit: c.bizUnit, label: c.brandName }))}
+                        onChange={setSelectedBrandBizUnit}
+                        onDark
+                      />
+                    }
+                  />
+                );
+              })()}
+            </div>
+            {/* 우: 5-탭 스위처 (선택된 사업부 기준 상세/광고효율/KPI/AI/심층) */}
+            <div className="flex flex-col min-h-0">
+              {/* 탭 헤더 */}
+              <div className="mb-3 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                {([
+                  { key: "detail",       label: t("비용 계정 상세 분석", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
+                  { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
+                  { key: "kpi",          label: t("주요 지표 (KPI)", lang),    icon: <LineChart className="w-3.5 h-3.5" /> },
+                  { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
+                  { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
+                ] as { key: RightTab; label: string; icon: React.ReactNode }[]).map((tab) => {
+                  const active = rightTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setRightTab(tab.key)}
+                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                        active
+                          ? "bg-white shadow-sm border border-slate-200 text-indigo-700"
+                          : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+                      }`}
+                    >
+                      {tab.icon}
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 탭 콘텐츠 */}
+              {rightTab === "detail" && (
+                <ExpenseAccountHierTable
+                  bizUnit={selectedBrandBizUnit}
+                  year={yearOption.year}
+                  month={month}
+                  title={`${t(selectedBrandBizUnit, lang)} ${t("비용 계정 상세 분석", lang)}`}
+                  yearType={yearOption.type}
+                  {...(yearOption.type === "actual" ? { mode, onModeChange: setMode } : {})}
+                />
+              )}
+              {rightTab === "adEfficiency" && (
+                <div className="space-y-4">
+                  {/* 광고비-매출 효율 분석 (공통은 매출 없어 스킵) */}
+                  {selectedBrandBizUnit !== "공통" && (
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <AdSalesEfficiencyAnalysis
+                        bizUnit={selectedBrandBizUnit}
+                        year={yearOption.year}
+                        mode="yoy"
+                        yearType={yearOption.type}
+                      />
+                    </div>
+                  )}
+                  {/* 월별 추이 차트 */}
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <MonthlyStackedChart
+                      bizUnit={selectedBrandBizUnit}
+                      year={yearOption.year}
+                      mode="monthly"
+                      yearType={yearOption.type}
+                    />
+                  </div>
+                  {/* 드릴다운 차트 */}
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <CategoryDrilldown
+                      bizUnit={selectedBrandBizUnit}
+                      year={yearOption.year}
+                      month={month}
+                      mode={mode}
+                      yearType={yearOption.type}
+                    />
+                  </div>
+                </div>
+              )}
+              {rightTab === "kpi" && (() => {
+                const curr = getMonthlyTotal(selectedBrandBizUnit, yearOption.year, month, mode, yearOption.type);
+                const prev = getMonthlyTotal(selectedBrandBizUnit, yearOption.year - 1, month, mode, "actual");
+                const totalCost = curr?.amount ?? 0;
+                const prevCost = prev?.amount ?? 0;
+                const costYoy = prevCost > 0 ? (totalCost / prevCost) * 100 : null;
+                const sales = curr?.sales ?? 0;
+                const prevSales = prev?.sales ?? 0;
+                const salesYoy = prevSales > 0 ? (sales / prevSales) * 100 : null;
+                const costRatio = sales > 0 ? (totalCost * 1.13 / sales) * 100 : null;
+                const prevCostRatio = prevSales > 0 ? (prevCost * 1.13 / prevSales) * 100 : null;
+                const hc = curr?.headcount ?? 0;
+                const prevHc = prev?.headcount ?? 0;
+                const bu = selectedBrandBizUnit;
+                const isBrandBu = bu !== "법인" && bu !== "공통";
+                const isCommonBu = bu === "공통";
+                const isCorporateBu = bu === "법인";
+                return (
+                  <div className="space-y-4">
+                    {/* Top KPI 카드 */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-4">
+                      <h3 className="text-[15px] font-bold text-slate-800 mb-3">{t(bu, lang)} — {t("주요 지표 (KPI)", lang)}</h3>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <KpiCard title={t("총비용", lang)} value={totalCost} unit="K" yoy={costYoy} previousValue={prevCost} />
+                        <KpiCard title={t("판매매출", lang)} value={sales} unit="M" yoy={salesYoy} previousValue={prevSales} />
+                        <KpiCard title={t("매출대비 비용률", lang)} value={costRatio} yoy={costRatio != null && prevCostRatio != null ? costRatio - prevCostRatio : null} previousValue={prevCostRatio} />
+                        <KpiCard title={t("인원", lang)} value={hc} unit={t("명", lang)} yoy={null} previousValue={prevHc} />
+                      </div>
+                    </div>
+                    {/* 인건비 · 광고비 · IT수수료 · 지급수수료 카드 (사업부별 상이) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                      <LaborCostPerCapitaCard bizUnit={bu} year={yearOption.year} month={month} mode={mode} yearType={yearOption.type} />
+                      {isBrandBu && (
+                        <>
+                          <AdExpenseCard bizUnit={bu} year={yearOption.year} month={month} adNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
+                          <CategoryExpenseCard title={t("수주회", lang)} categoryLv1="수주회" node={null} bizUnit={bu} year={yearOption.year} month={month} yearType={yearOption.type} sales={sales} prevSales={prevSales} />
+                          <CategoryExpenseCard title={t("출장비", lang)} categoryLv1="출장비" node={null} bizUnit={bu} year={yearOption.year} month={month} yearType={yearOption.type} sales={sales} prevSales={prevSales} />
+                        </>
+                      )}
+                      {isCommonBu && (
+                        <>
+                          <ITFeeCard bizUnit={bu} year={yearOption.year} month={month} itNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
+                          <PaymentFeeCard bizUnit={bu} year={yearOption.year} month={month} paymentNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
+                        </>
+                      )}
+                      {isCorporateBu && (
+                        <>
+                          <AdExpenseCard bizUnit={bu} year={yearOption.year} month={month} adNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
+                          <ITFeeCard bizUnit={bu} year={yearOption.year} month={month} itNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
+                          <PaymentFeeCard bizUnit={bu} year={yearOption.year} month={month} paymentNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+              {rightTab === "ai" && (
+                <AIReportModal
+                  isOpen={true}
+                  onClose={() => {}}
+                  year={yearOption.year}
+                  month={month}
+                  mode={mode}
+                  yearType={yearOption.type}
+                  inline
+                />
+              )}
+              {rightTab === "deep" && (
+                <DeepAnalysisModal
+                  isOpen={true}
+                  onClose={() => {}}
+                  year={yearOption.year}
+                  month={month}
+                  inline
+                />
+              )}
+            </div>
           </div>
         </div>
 

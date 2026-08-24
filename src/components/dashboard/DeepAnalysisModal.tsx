@@ -9,6 +9,8 @@ interface DeepAnalysisModalProps {
   onClose: () => void;
   year: number;
   month: number;
+  /** true면 모달 오버레이 없이 인라인 렌더 (탭 안에서 사용) */
+  inline?: boolean;
 }
 
 const BRANDS = ["MLB", "KIDS", "DISCOVERY", "공통"] as const;
@@ -188,7 +190,7 @@ function Chip({ children, color }: { children: React.ReactNode; color: "blue" | 
   );
 }
 
-export function DeepAnalysisModal({ isOpen, onClose, year, month }: DeepAnalysisModalProps) {
+export function DeepAnalysisModal({ isOpen, onClose, year, month, inline = false }: DeepAnalysisModalProps) {
   const m = useMemo<DeepAnalysisMetrics | null>(() => {
     if (!isOpen) return null;
     try {
@@ -202,41 +204,50 @@ export function DeepAnalysisModal({ isOpen, onClose, year, month }: DeepAnalysis
 
   // 데이터가 없거나 로드 실패 시
   if (!m) {
+    const errBody = (
+      <div className={`bg-white rounded-2xl ${inline ? "" : "shadow-2xl"} p-8 max-w-md`}>
+        <div className="flex items-center justify-between mb-4">
+          <span className="font-bold">심층분석 보고서</span>
+          {!inline && <button onClick={onClose}><X className="w-4 h-4" /></button>}
+        </div>
+        <p className="text-sm text-slate-600">데이터를 계산할 수 없습니다. 데이터가 로드된 후 다시 시도하세요.</p>
+      </div>
+    );
+    if (inline) return errBody;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md">
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-bold">심층분석 보고서</span>
-            <button onClick={onClose}><X className="w-4 h-4" /></button>
-          </div>
-          <p className="text-sm text-slate-600">데이터를 계산할 수 없습니다. 데이터가 로드된 후 다시 시도하세요.</p>
-        </div>
+        {errBody}
       </div>
     );
   }
 
   const yoyStr = (v: number) => `${Math.round(v)}%`;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative flex flex-col bg-white rounded-2xl shadow-2xl w-[96vw] max-w-4xl h-[94vh]">
-        {/* Top bar */}
-        <div className="flex items-center justify-between px-6 py-3.5 bg-white rounded-t-2xl border-b border-slate-100 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <Microscope className="w-5 h-5 text-violet-600" />
-            <span className="font-bold text-slate-800 text-[15px]">심층분석 보고서</span>
-            <span className="text-[12px] text-slate-500 ml-1">{m.monthLabel} YTD 기준</span>
-          </div>
+  // 실제 콘텐츠 (모달 오버레이 안 또는 인라인 컨테이너 안에 렌더)
+  const bodyContent = (
+    <div className={inline
+      ? "flex flex-col bg-white rounded-2xl border border-slate-200 w-full"
+      : "relative flex flex-col bg-white rounded-2xl shadow-2xl w-[96vw] max-w-4xl h-[94vh]"}
+    >
+      {/* Top bar (인라인 모드에서도 헤더 유지, 닫기 버튼만 숨김) */}
+      <div className="flex items-center justify-between px-6 py-3.5 bg-white rounded-t-2xl border-b border-slate-100 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <Microscope className="w-5 h-5 text-violet-600" />
+          <span className="font-bold text-slate-800 text-[15px]">심층분석 보고서</span>
+          <span className="text-[12px] text-slate-500 ml-1">{m.monthLabel} YTD 기준</span>
+        </div>
+        {!inline && (
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
-        </div>
+        )}
+      </div>
 
-        {/* Scrollable content */}
-        <div className="flex-1 overflow-y-auto px-7 py-6">
+      {/* Scrollable content */}
+      <div className={inline ? "px-7 py-6" : "flex-1 overflow-y-auto px-7 py-6"}>
           {/* Title block */}
           <div className="rounded-xl bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 px-7 py-6 text-white shadow-md mb-8">
             <div className="text-[13px] font-semibold uppercase tracking-widest text-violet-100 mb-2.5">
@@ -430,6 +441,12 @@ export function DeepAnalysisModal({ isOpen, onClose, year, month }: DeepAnalysis
           </section>
         </div>
       </div>
+  );
+
+  if (inline) return bodyContent;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      {bodyContent}
     </div>
   );
 }
