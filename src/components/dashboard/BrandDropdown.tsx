@@ -45,16 +45,16 @@ export function BrandDropdown({ value, options, onChange, onDark = true }: Brand
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-bold text-sm sm:text-base transition-colors ${
+        className={`flex items-center gap-1.5 rounded px-2.5 py-1 font-bold text-[19px] transition-colors ${
           onDark
-            ? "bg-white/15 hover:bg-white/25 border border-white/30 text-white"
-            : "bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800"
+            ? "hover:bg-white/15 text-white"
+            : "hover:bg-slate-100 text-slate-800"
         }`}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
         <span>{t(currentLabel, lang)}</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-5 h-5 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
         <ul
@@ -71,7 +71,7 @@ export function BrandDropdown({ value, options, onChange, onDark = true }: Brand
                     onChange(opt.bizUnit);
                     setOpen(false);
                   }}
-                  className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left transition-colors ${
+                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-[13px] text-left transition-colors ${
                     selected
                       ? "bg-indigo-50 text-indigo-700 font-semibold"
                       : "text-slate-700 hover:bg-slate-50"

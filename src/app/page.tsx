@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, Bot, Microscope, LineChart, BarChart2, Table as TableIcon, type LucideIcon } from "lucide-react";
+import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, Bot, Microscope, BarChart2, Table as TableIcon, Scale, type LucideIcon } from "lucide-react";
+import { BudgetMidCheck } from "@/components/dashboard/BudgetMidCheck";
 import React from "react";
 
 // 야구공 아이콘 컴포넌트 (LucideIcon 타입과 호환)
@@ -48,19 +49,12 @@ BaseballIcon.displayName = "BaseballIcon";
 import { BrandCard } from "@/components/dashboard/BrandCard";
 import { BrandDropdown } from "@/components/dashboard/BrandDropdown";
 import { ExpenseAccountHierTable } from "@/components/dashboard/ExpenseAccountHierTable";
+import { MonthlyCategoryTrendTable } from "@/components/dashboard/MonthlyCategoryTrendTable";
 import { AdSalesEfficiencyAnalysis } from "@/components/dashboard/AdSalesEfficiencyAnalysis";
-import { KpiCard } from "@/components/dashboard/KpiCard";
-import { LaborCostPerCapitaCard } from "@/components/dashboard/LaborCostPerCapitaCard";
-import { AdExpenseCard } from "@/components/dashboard/AdExpenseCard";
-import { ITFeeCard } from "@/components/dashboard/ITFeeCard";
-import { PaymentFeeCard } from "@/components/dashboard/PaymentFeeCard";
-import { CategoryExpenseCard } from "@/components/dashboard/CategoryExpenseCard";
 import { MonthlyStackedChart } from "@/components/dashboard/MonthlyStackedChart";
-import { CategoryDrilldown } from "@/components/dashboard/CategoryDrilldown";
 import { ReportModal } from "@/components/dashboard/ReportModal";
 import { AIReportModal } from "@/components/dashboard/AIReportModal";
 import { DeepAnalysisModal } from "@/components/dashboard/DeepAnalysisModal";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   getAvailableYears,
@@ -71,7 +65,7 @@ import {
   type YearOption,
 } from "@/lib/expenseData";
 import { calculateYOY } from "@/lib/utils";
-import { getAnnualData, getMonthlyTotal, type BizUnit } from "@/lib/expenseData";
+import { getAnnualData, type BizUnit } from "@/lib/expenseData";
 import { getLatestYearOption, getLatestMonth } from "@/lib/dashboardDefaults";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
@@ -103,8 +97,8 @@ export default function HomePage() {
   // 홈 상단 카드에서 선택 중인 사업부 (드롭다운 셀렉터로 전환)
   const [selectedBrandBizUnit, setSelectedBrandBizUnit] = useState<BizUnit>("법인");
   // 우측 5-탭 스위처 선택 상태
-  type RightTab = "detail" | "adEfficiency" | "kpi" | "ai" | "deep";
-  const [rightTab, setRightTab] = useState<RightTab>("detail");
+  type RightTab = "budget" | "detail" | "adEfficiency" | "ai" | "deep";
+  const [rightTab, setRightTab] = useState<RightTab>("budget");
 
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
   const availableMonths = getAvailableMonths(yearOption.year, yearOption.type);
@@ -137,33 +131,58 @@ export default function HomePage() {
   return (
     <>
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-20 py-6 md:py-8">
+      <div className="w-full px-2 sm:px-2 md:px-3 lg:px-3 xl:px-4 py-3 md:py-4">
         {/* 헤더 */}
-        <div className="mb-8">
-          {/* 제목 영역 */}
-          <div className="mb-6">
-            <div className="flex items-center justify-center gap-4 mb-4">
-              {/* 그라데이션 아이콘 박스 (바 차트) */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-lg">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
-              {/* 제목 */}
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-800">{t("F&F CHINA 비용 대시보드", lang)}</h1>
+        <div className="mb-3">
+          {/* 제목 영역 (compact) */}
+          <div className="mb-4 flex items-center justify-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+              <BarChart3 className="w-6 h-6 text-white" />
             </div>
-            {/* 제목 아래 구분선 */}
-            <div className="h-1 bg-gradient-to-r from-purple-500 via-blue-500 to-purple-500 rounded-full mx-auto" style={{ maxWidth: '600px' }}></div>
+            <h1 className="text-[15px] sm:text-lg lg:text-2xl font-bold text-gray-900">{t("F&F CHINA 비용 대시보드", lang)}</h1>
           </div>
           
           {/* 날짜 선택 및 모드 전환 영역 */}
-          <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-            <div className="flex items-center gap-4 flex-wrap min-w-0 flex-1">
-              {/* 그라데이션 아이콘 박스 (캘린더) */}
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shadow-lg flex-shrink-0">
-                <Calendar className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between gap-3 mb-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+              {/* 모드 탭 (참고 디자인: rounded-xl bg-slate-100 pill 스타일) */}
+              <div className="inline-flex items-center rounded-xl bg-slate-100/90 p-1 ring-1 ring-slate-200/80 shadow-sm shadow-slate-200/40 flex-shrink-0">
+                {(() => {
+                  const modeItems: { key: Mode; label: string; disabled: boolean }[] = [
+                    { key: "monthly", label: isPlanYear ? t("월", lang) : t("당월", lang), disabled: isPlanYear },
+                    { key: "ytd",     label: isPlanYear ? t("연간", lang) : t("누적(YTD)", lang), disabled: false },
+                    ...(!isPlanYear ? ([1, 2, 3, 4] as const).map((q) => ({
+                      key: `q${q}` as Mode,
+                      label: `${q}${t("분기", lang)}`,
+                      disabled: !availableQuarters.includes(q),
+                    })) : []),
+                  ];
+                  return modeItems.map((it) => {
+                    const active = mode === it.key;
+                    return (
+                      <button
+                        key={it.key}
+                        type="button"
+                        disabled={it.disabled}
+                        onClick={() => !it.disabled && setMode(it.key)}
+                        className={`px-3 py-1 text-[13px] font-semibold rounded-lg transition-all ${
+                          active
+                            ? "bg-white text-blue-600 shadow-sm shadow-slate-200/60"
+                            : it.disabled
+                            ? "text-slate-300 cursor-not-allowed"
+                            : "text-slate-500 hover:text-slate-700"
+                        }`}
+                      >
+                        {it.label}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
-              {/* 날짜 선택 + 월/연간 탭 (나란히) */}
-              <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-gray-50 rounded-lg shadow-sm border border-gray-200 flex-shrink-0">
-                <div className="relative">
+              {/* 날짜 셀렉터 (흰 배경, 모드탭과 동일 형태) */}
+              <div className="inline-flex items-center rounded-xl bg-white p-1 ring-1 ring-slate-200/80 shadow-sm shadow-slate-200/40 flex-shrink-0">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 flex-shrink-0 ml-1.5 mr-1" />
+                <div className="relative flex items-center px-2 py-1 mr-0.5">
                   <select
                     value={`${yearOption.year}-${yearOption.type}`}
                     onChange={(e) => {
@@ -173,25 +192,23 @@ export default function HomePage() {
                       );
                       if (selected) setYearOption(selected);
                     }}
-                    className="appearance-none bg-transparent border-none outline-none text-[10px] sm:text-xs md:text-sm font-medium text-gray-700 cursor-pointer pr-6"
+                    className="appearance-none bg-transparent border-none outline-none text-[13px] font-semibold text-blue-600 cursor-pointer pr-4 py-0 leading-none"
                   >
                     {availableYearOptions.map((opt) => (
                       <option key={`${opt.year}-${opt.type}`} value={`${opt.year}-${opt.type}`}>
-                        {`${opt.year}${t(opt.type === 'plan' ? '년(예산)' : '년(실적)', lang)}`}
+                        {`${opt.year}${t(opt.type === 'plan' ? '년(예산)' : '년', lang)}`}
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-600 pointer-events-none" />
+                  <ChevronDown className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
                 </div>
-                <div className="relative">
+                <div className="relative flex items-center px-2 py-1">
                   <select
                     value={month.toString()}
                     onChange={(e) => setMonth(parseInt(e.target.value))}
                     disabled={isPlanYear}
-                    className={`appearance-none bg-transparent border-none outline-none text-[10px] sm:text-xs md:text-sm font-medium pr-6 ${
-                      isPlanYear 
-                        ? 'text-gray-400 cursor-not-allowed' 
-                        : 'text-gray-700 cursor-pointer'
+                    className={`appearance-none bg-transparent border-none outline-none text-[13px] font-semibold pr-4 py-0 leading-none ${
+                      isPlanYear ? 'text-slate-300 cursor-not-allowed' : 'text-blue-600 cursor-pointer'
                     }`}
                   >
                     {availableMonths.map((m) => (
@@ -200,42 +217,37 @@ export default function HomePage() {
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className={`absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${
-                    isPlanYear ? 'text-gray-400' : 'text-gray-600'
+                  <ChevronDown className={`absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 pointer-events-none ${
+                    isPlanYear ? 'text-slate-300' : 'text-slate-400'
                   }`} />
                 </div>
-                <Tabs 
-                  value={mode} 
-                  onValueChange={(v) => !isPlanYear && setMode(v as Mode)} 
-                  className="flex-shrink-0"
-                >
-                  <TabsList>
-                    <TabsTrigger
-                      value="monthly"
-                      disabled={isPlanYear}
-                      className={isPlanYear ? 'cursor-not-allowed opacity-50' : ''}
+              </div>
+              {/* 우측 탭 스위처 (예산/상세/광고/AI/심층) — 날짜 우측 */}
+              <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-slate-100 p-1 border border-slate-200 flex-shrink-0">
+                {([
+                  { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" /> },
+                  { key: "detail",       label: t("비용 계정 상세 분석", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
+                  { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
+                  { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
+                  { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
+                ] as { key: RightTab; label: string; icon: React.ReactNode }[]).map((tab) => {
+                  const active = rightTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setRightTab(tab.key)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors ${
+                        active
+                          ? "bg-slate-800 text-white"
+                          : "text-slate-600 hover:bg-slate-200/60"
+                      }`}
                     >
-                      {isPlanYear ? t("월", lang) : t("당월", lang)}
-                    </TabsTrigger>
-                    <TabsTrigger value="ytd">
-                      {isPlanYear ? t("연간", lang) : t("누적(YTD)", lang)}
-                    </TabsTrigger>
-                    {/* 실적일 때만 분기 탭 노출 (가용한 분기 강조, 나머지 disabled) */}
-                    {!isPlanYear && ([1, 2, 3, 4] as const).map((q) => {
-                      const enabled = availableQuarters.includes(q);
-                      return (
-                        <TabsTrigger
-                          key={`q${q}`}
-                          value={`q${q}`}
-                          disabled={!enabled}
-                          className={!enabled ? 'cursor-not-allowed opacity-40' : ''}
-                        >
-                          {q}{t("분기", lang)}
-                        </TabsTrigger>
-                      );
-                    })}
-                  </TabsList>
-                </Tabs>
+                      {tab.icon}
+                      {tab.label}
+                    </button>
+                  );
+                })}
               </div>
               {/* AI 보고서/심층분석 버튼 제거 — 우측 탭에서 직접 열람 */}
               {isPlanYear && (
@@ -263,32 +275,35 @@ export default function HomePage() {
                 </>
               )}
             </div>
-            <div className="flex-shrink-0 mt-2 sm:mt-0">
+            <div className="flex items-center gap-3 flex-shrink-0 mt-2 sm:mt-0">
+              {/* 매월 데이터 갱신 안내 (세로형, 언어 전환 좌측) */}
+              <div className="text-[10px] text-slate-400 leading-tight flex flex-col items-end">
+                <span>{t("매월 데이터 갱신(실행순서)", lang)}:</span>
+                <code className="mt-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
+                  python scripts/preprocess_sales.py
+                </code>
+                <span className="text-slate-400 text-[10px] leading-none">↓</span>
+                <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
+                  python scripts/preprocess_expense.py
+                </code>
+              </div>
               <LanguageToggle />
             </div>
-          </div>
-          <div className="mt-4 flex items-center gap-4 flex-wrap">
-            <p className="text-[10px] sm:text-xs text-muted-foreground">
-              {t("브랜드를 클릭하면 상세 대시보드로 이동합니다.", lang)}
-            </p>
-            <p className="text-[10px] sm:text-xs text-slate-400">
-              매월 데이터 갱신(실행순서):
-              <code className="ml-1 px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
-                python scripts/preprocess_sales.py
-              </code>
-              <span className="mx-1.5 text-slate-400">→</span>
-              <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
-                python scripts/preprocess_expense.py
-              </code>
-            </p>
           </div>
         </div>
 
         {/* HTML 다운로드 대상: 사업부 카드 + 상세표 (드롭다운으로 사업부 전환) */}
         <div ref={isPlanYear ? homeExportRef : undefined}>
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,1fr)_2fr] gap-6 mb-8">
-            {/* 좌: 사업부 선택 카드 (드롭다운으로 전환) */}
-            <div>
+          {(() => {
+            // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭 (YTD 7컬럼 vs 당월/분기 5컬럼).
+            // flex-none으로 카드가 자연 폭을 지키고, 남는 공간은 우측 panel이 흡수.
+            const cardWidthClass = mode === "ytd"
+              ? "xl:flex-none xl:w-[570px]"
+              : "xl:flex-none xl:w-[470px]";
+            return (
+          <div className="flex flex-col xl:flex-row gap-5 items-start mb-8">
+            {/* 좌: 사업부 선택 카드 (모드에 따라 폭 자동 조정) */}
+            <div className={`w-full ${cardWidthClass} shrink-0 transition-[flex] duration-200`}>
               {(() => {
                 const cfg =
                   MAIN_BRAND_CONFIG.find((c) => c.bizUnit === selectedBrandBizUnit) ??
@@ -317,61 +332,26 @@ export default function HomePage() {
                 );
               })()}
             </div>
-            {/* 우: 5-탭 스위처 (선택된 사업부 기준 상세/광고효율/KPI/AI/심층) */}
-            <div className="flex flex-col min-h-0">
-              {/* 탭 헤더 */}
-              <div className="mb-3 flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                {([
-                  { key: "detail",       label: t("비용 계정 상세 분석", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
-                  { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
-                  { key: "kpi",          label: t("주요 지표 (KPI)", lang),    icon: <LineChart className="w-3.5 h-3.5" /> },
-                  { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
-                  { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
-                ] as { key: RightTab; label: string; icon: React.ReactNode }[]).map((tab) => {
-                  const active = rightTab === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setRightTab(tab.key)}
-                      className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
-                        active
-                          ? "bg-white shadow-sm border border-slate-200 text-indigo-700"
-                          : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-                      }`}
-                    >
-                      {tab.icon}
-                      {tab.label}
-                    </button>
-                  );
-                })}
-              </div>
-
+            {/* 우: 5-탭 콘텐츠 영역 (탭 헤더는 상단 헤더 행으로 이동) */}
+            <div className="xl:flex-1 min-w-0 flex flex-col">
               {/* 탭 콘텐츠 */}
-              {rightTab === "detail" && (
-                <ExpenseAccountHierTable
+              {rightTab === "budget" && (
+                <BudgetMidCheck
                   bizUnit={selectedBrandBizUnit}
                   year={yearOption.year}
                   month={month}
-                  title={`${t(selectedBrandBizUnit, lang)} ${t("비용 계정 상세 분석", lang)}`}
-                  yearType={yearOption.type}
-                  {...(yearOption.type === "actual" ? { mode, onModeChange: setMode } : {})}
                 />
               )}
-              {rightTab === "adEfficiency" && (
+              {rightTab === "detail" && (
                 <div className="space-y-4">
-                  {/* 광고비-매출 효율 분석 (공통은 매출 없어 스킵) */}
-                  {selectedBrandBizUnit !== "공통" && (
-                    <div className="rounded-lg border border-slate-200 bg-white p-4">
-                      <AdSalesEfficiencyAnalysis
-                        bizUnit={selectedBrandBizUnit}
-                        year={yearOption.year}
-                        mode="yoy"
-                        yearType={yearOption.type}
-                      />
-                    </div>
-                  )}
-                  {/* 월별 추이 차트 */}
+                  {/* 월별 계정 추이 (매트릭스 표) */}
+                  <MonthlyCategoryTrendTable
+                    bizUnit={selectedBrandBizUnit}
+                    year={yearOption.year}
+                    yearType={yearOption.type}
+                    upToMonth={month}
+                  />
+                  {/* 하단: 월별 비용 스택 차트 (YOY 라인 포함) */}
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
                     <MonthlyStackedChart
                       bizUnit={selectedBrandBizUnit}
@@ -380,74 +360,27 @@ export default function HomePage() {
                       yearType={yearOption.type}
                     />
                   </div>
-                  {/* 드릴다운 차트 */}
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <CategoryDrilldown
-                      bizUnit={selectedBrandBizUnit}
-                      year={yearOption.year}
-                      month={month}
-                      mode={mode}
-                      yearType={yearOption.type}
-                    />
-                  </div>
                 </div>
               )}
-              {rightTab === "kpi" && (() => {
-                const curr = getMonthlyTotal(selectedBrandBizUnit, yearOption.year, month, mode, yearOption.type);
-                const prev = getMonthlyTotal(selectedBrandBizUnit, yearOption.year - 1, month, mode, "actual");
-                const totalCost = curr?.amount ?? 0;
-                const prevCost = prev?.amount ?? 0;
-                const costYoy = prevCost > 0 ? (totalCost / prevCost) * 100 : null;
-                const sales = curr?.sales ?? 0;
-                const prevSales = prev?.sales ?? 0;
-                const salesYoy = prevSales > 0 ? (sales / prevSales) * 100 : null;
-                const costRatio = sales > 0 ? (totalCost * 1.13 / sales) * 100 : null;
-                const prevCostRatio = prevSales > 0 ? (prevCost * 1.13 / prevSales) * 100 : null;
-                const hc = curr?.headcount ?? 0;
-                const prevHc = prev?.headcount ?? 0;
-                const bu = selectedBrandBizUnit;
-                const isBrandBu = bu !== "법인" && bu !== "공통";
-                const isCommonBu = bu === "공통";
-                const isCorporateBu = bu === "법인";
-                return (
-                  <div className="space-y-4">
-                    {/* Top KPI 카드 */}
+              {rightTab === "adEfficiency" && (
+                <div className="space-y-4">
+                  {/* 광고비-매출 효율 분석 (공통은 매출 없어 스킵) */}
+                  {selectedBrandBizUnit !== "공통" ? (
                     <div className="rounded-lg border border-slate-200 bg-white p-4">
-                      <h3 className="text-[15px] font-bold text-slate-800 mb-3">{t(bu, lang)} — {t("주요 지표 (KPI)", lang)}</h3>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                        <KpiCard title={t("총비용", lang)} value={totalCost} unit="K" yoy={costYoy} previousValue={prevCost} />
-                        <KpiCard title={t("판매매출", lang)} value={sales} unit="M" yoy={salesYoy} previousValue={prevSales} />
-                        <KpiCard title={t("매출대비 비용률", lang)} value={costRatio} yoy={costRatio != null && prevCostRatio != null ? costRatio - prevCostRatio : null} previousValue={prevCostRatio} />
-                        <KpiCard title={t("인원", lang)} value={hc} unit={t("명", lang)} yoy={null} previousValue={prevHc} />
-                      </div>
+                      <AdSalesEfficiencyAnalysis
+                        bizUnit={selectedBrandBizUnit}
+                        year={yearOption.year}
+                        mode="yoy"
+                        yearType={yearOption.type}
+                      />
                     </div>
-                    {/* 인건비 · 광고비 · IT수수료 · 지급수수료 카드 (사업부별 상이) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                      <LaborCostPerCapitaCard bizUnit={bu} year={yearOption.year} month={month} mode={mode} yearType={yearOption.type} />
-                      {isBrandBu && (
-                        <>
-                          <AdExpenseCard bizUnit={bu} year={yearOption.year} month={month} adNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
-                          <CategoryExpenseCard title={t("수주회", lang)} categoryLv1="수주회" node={null} bizUnit={bu} year={yearOption.year} month={month} yearType={yearOption.type} sales={sales} prevSales={prevSales} />
-                          <CategoryExpenseCard title={t("출장비", lang)} categoryLv1="출장비" node={null} bizUnit={bu} year={yearOption.year} month={month} yearType={yearOption.type} sales={sales} prevSales={prevSales} />
-                        </>
-                      )}
-                      {isCommonBu && (
-                        <>
-                          <ITFeeCard bizUnit={bu} year={yearOption.year} month={month} itNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
-                          <PaymentFeeCard bizUnit={bu} year={yearOption.year} month={month} paymentNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
-                        </>
-                      )}
-                      {isCorporateBu && (
-                        <>
-                          <AdExpenseCard bizUnit={bu} year={yearOption.year} month={month} adNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
-                          <ITFeeCard bizUnit={bu} year={yearOption.year} month={month} itNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
-                          <PaymentFeeCard bizUnit={bu} year={yearOption.year} month={month} paymentNode={null} yearType={yearOption.type} {...(yearOption.type === "actual" && { mode })} sales={sales} prevSales={prevSales} />
-                        </>
-                      )}
+                  ) : (
+                    <div className="rounded-lg border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+                      {t("공통은 매출이 없어 광고비 효율 분석을 제공하지 않습니다.", lang)}
                     </div>
-                  </div>
-                );
-              })()}
+                  )}
+                </div>
+              )}
               {rightTab === "ai" && (
                 <AIReportModal
                   isOpen={true}
@@ -470,6 +403,8 @@ export default function HomePage() {
               )}
             </div>
           </div>
+            );
+          })()}
         </div>
 
         {/* 예산구조진단 보고서 모달 */}

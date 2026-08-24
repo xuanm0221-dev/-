@@ -12,35 +12,27 @@ export function LanguageToggle({ compact }: LanguageToggleProps = {}) {
   const { lang, setLang } = useLanguage();
 
   return (
-    <div
-      className={cn(
-        "inline-flex h-7 items-center rounded-lg border border-gray-200 bg-gray-50",
-        compact ? "gap-1 px-2 py-1" : "gap-1 px-2 py-1.5"
-      )}
-    >
+    <div className="inline-flex items-center rounded-xl bg-slate-100/90 p-1 ring-1 ring-slate-200/80 shadow-sm shadow-slate-200/40">
       <button
         type="button"
         onClick={() => setLang("ko")}
         className={cn(
-          "rounded-md font-medium transition-colors",
-          compact ? "px-2 py-1 text-xs" : "px-2.5 py-1 text-[10px] sm:text-xs",
+          "px-3 py-1 text-[13px] font-semibold rounded-lg transition-all",
           lang === "ko"
-            ? "bg-white text-gray-800 shadow-sm"
-            : "text-gray-500 hover:text-gray-700"
+            ? "bg-white text-blue-600 shadow-sm shadow-slate-200/60"
+            : "text-slate-500 hover:text-slate-700"
         )}
       >
         한국어
       </button>
-      <span className="text-gray-300 px-0.5">|</span>
       <button
         type="button"
         onClick={() => setLang("zh")}
         className={cn(
-          "rounded-md font-medium transition-colors",
-          compact ? "px-2 py-1 text-xs" : "px-2.5 py-1 text-[10px] sm:text-xs",
+          "px-3 py-1 text-[13px] font-semibold rounded-lg transition-all",
           lang === "zh"
-            ? "bg-white text-gray-800 shadow-sm"
-            : "text-gray-500 hover:text-gray-700"
+            ? "bg-white text-blue-600 shadow-sm shadow-slate-200/60"
+            : "text-slate-500 hover:text-slate-700"
         )}
       >
         中文

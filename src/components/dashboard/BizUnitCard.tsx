@@ -5,47 +5,53 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, ArrowDown, Plus, Minus } from "lucide-react";
 import { formatPercent, formatK } from "@/lib/utils";
-import { getCategoryDetail, type BizUnit, type Mode } from "@/lib/expenseData";
+import { getCategoryDetail, getMonthlyTotal, getAggregatedData, type BizUnit, type Mode } from "@/lib/expenseData";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t, getDisplayLabel } from "@/lib/translations";
 import React, { Fragment, useEffect, useState } from "react";
 
 // 사업부별 테마 설정
+// 헤더는 그라데이션 없이 단색. 법인은 git 참고 네이비 (#001f3f).
 const THEME = {
   법인: {
-    headerGradient: "from-purple-600 to-indigo-600",
-    primaryColor: "text-purple-600",
-    borderColor: "border-purple-600",
-    buttonColor: "#7c3aed",
-    accentColor: "bg-purple-600",
+    headerBg: "bg-[#1e3a8a]",
+    primaryColor: "text-[#1e3a8a]",
+    borderColor: "border-[#1e3a8a]",
+    buttonColor: "#1e3a8a",
+    accentColor: "bg-[#1e3a8a]",
+    cellBg: "bg-slate-100/60",
   },
   MLB: {
-    headerGradient: "from-blue-500 to-blue-600",
+    headerBg: "bg-blue-600",
     primaryColor: "text-blue-600",
-    borderColor: "border-blue-500",
-    buttonColor: "#3b82f6",
-    accentColor: "bg-blue-500",
+    borderColor: "border-blue-600",
+    buttonColor: "#2563eb",
+    accentColor: "bg-blue-600",
+    cellBg: "bg-blue-100/40",
   },
   KIDS: {
-    headerGradient: "from-yellow-500 to-yellow-600",
+    headerBg: "bg-yellow-500",
     primaryColor: "text-yellow-600",
     borderColor: "border-yellow-500",
     buttonColor: "#eab308",
     accentColor: "bg-yellow-500",
+    cellBg: "bg-yellow-100/50",
   },
   DISCOVERY: {
-    headerGradient: "from-green-500 to-green-600",
+    headerBg: "bg-green-600",
     primaryColor: "text-green-600",
-    borderColor: "border-green-500",
-    buttonColor: "#10b981",
-    accentColor: "bg-green-500",
+    borderColor: "border-green-600",
+    buttonColor: "#16a34a",
+    accentColor: "bg-green-600",
+    cellBg: "bg-green-100/40",
   },
   COMMON: {
-    headerGradient: "from-gray-700 to-gray-800",
-    primaryColor: "text-gray-700",
-    borderColor: "border-gray-700",
-    buttonColor: "#6b7280",
-    accentColor: "bg-gray-700",
+    headerBg: "bg-slate-700",
+    primaryColor: "text-slate-700",
+    borderColor: "border-slate-700",
+    buttonColor: "#334155",
+    accentColor: "bg-slate-700",
+    cellBg: "bg-slate-100/60",
   },
 } as const;
 
@@ -133,25 +139,33 @@ export function BizUnitCard({
   };
   const isExpanded = (key: string) => expandedKeys.has(key);
 
+  // 법인 뷰에서 광고비/출장비는 브랜드(biz_unit)를 lv2로 먼저 그룹핑
+  const BRAND_FIRST_LV1 = new Set(["광고비", "출장비"]);
+
   // 특정 lv1의 하위 lv2 그룹핑 (annualPlan 포함)
   const getLv2Rows = (lv1: string) => {
+    // 광고비/출장비 & 법인 뷰: lv2 = biz_unit
+    const brandFirst = isCorporate && BRAND_FIRST_LV1.has(lv1);
     const curr = getCategoryDetail(businessUnit, year, month, lv1, mode, yearType);
     const prev = getCategoryDetail(businessUnit, year - 1, month, lv1, mode, "actual");
-    const plan = getCategoryDetail(businessUnit, year, 12, lv1, "ytd", "plan"); // 연간 계획
+    const plan = getCategoryDetail(businessUnit, year, 12, lv1, "ytd", "plan");
+    const keyFn = (d: { biz_unit?: string; cost_lv2?: string }) => brandFirst ? (d.biz_unit || "-") : (d.cost_lv2 || "-");
+    const labelCnFn = (d: { biz_unit_cn?: string; cost_lv2_cn?: string }) => brandFirst ? d.biz_unit_cn : d.cost_lv2_cn;
+
     const currMap = new Map<string, { amount: number; labelCn?: string }>();
     for (const d of curr) {
-      const key = d.cost_lv2 || "-";
-      const p = currMap.get(key) ?? { amount: 0, labelCn: d.cost_lv2_cn };
-      currMap.set(key, { amount: p.amount + (d.amount || 0), labelCn: p.labelCn ?? d.cost_lv2_cn });
+      const key = keyFn(d);
+      const p = currMap.get(key) ?? { amount: 0, labelCn: labelCnFn(d) };
+      currMap.set(key, { amount: p.amount + (d.amount || 0), labelCn: p.labelCn ?? labelCnFn(d) });
     }
     const prevMap = new Map<string, number>();
     for (const d of prev) {
-      const key = d.cost_lv2 || "-";
+      const key = keyFn(d);
       prevMap.set(key, (prevMap.get(key) ?? 0) + (d.amount || 0));
     }
     const planMap = new Map<string, number>();
     for (const d of plan) {
-      const key = d.cost_lv2 || "-";
+      const key = keyFn(d);
       planMap.set(key, (planMap.get(key) ?? 0) + (d.amount || 0));
     }
     return Array.from(currMap.entries())
@@ -174,24 +188,37 @@ export function BizUnitCard({
   };
 
   // 특정 lv1+lv2의 하위 lv3 그룹핑 (annualPlan 포함)
+  // 광고비/출장비 & 법인 뷰: lv2가 biz_unit이므로 lv3 = cost_lv2 로 필터
   const getLv3Rows = (lv1: string, lv2: string) => {
-    const curr = getCategoryDetail(businessUnit, year, month, lv1, mode, yearType).filter((d) => (d.cost_lv2 || "-") === lv2);
-    const prev = getCategoryDetail(businessUnit, year - 1, month, lv1, mode, "actual").filter((d) => (d.cost_lv2 || "-") === lv2);
-    const plan = getCategoryDetail(businessUnit, year, 12, lv1, "ytd", "plan").filter((d) => (d.cost_lv2 || "-") === lv2);
+    const brandFirst = isCorporate && BRAND_FIRST_LV1.has(lv1);
+    const filter = brandFirst
+      ? (d: { biz_unit?: string }) => (d.biz_unit || "-") === lv2
+      : (d: { cost_lv2?: string }) => (d.cost_lv2 || "-") === lv2;
+    const groupKey = brandFirst
+      ? (d: { cost_lv2?: string }) => (d.cost_lv2 || "-")
+      : (d: { cost_lv3?: string }) => (d.cost_lv3 || "-");
+    const labelCnFn = brandFirst
+      ? (d: { cost_lv2_cn?: string }) => d.cost_lv2_cn
+      : (d: { cost_lv3_cn?: string }) => d.cost_lv3_cn;
+
+    const curr = getCategoryDetail(businessUnit, year, month, lv1, mode, yearType).filter(filter);
+    const prev = getCategoryDetail(businessUnit, year - 1, month, lv1, mode, "actual").filter(filter);
+    const plan = getCategoryDetail(businessUnit, year, 12, lv1, "ytd", "plan").filter(filter);
+
     const currMap = new Map<string, { amount: number; labelCn?: string }>();
     for (const d of curr) {
-      const key = d.cost_lv3 || "-";
-      const p = currMap.get(key) ?? { amount: 0, labelCn: d.cost_lv3_cn };
-      currMap.set(key, { amount: p.amount + (d.amount || 0), labelCn: p.labelCn ?? d.cost_lv3_cn });
+      const key = groupKey(d);
+      const p = currMap.get(key) ?? { amount: 0, labelCn: labelCnFn(d) };
+      currMap.set(key, { amount: p.amount + (d.amount || 0), labelCn: p.labelCn ?? labelCnFn(d) });
     }
     const prevMap = new Map<string, number>();
     for (const d of prev) {
-      const key = d.cost_lv3 || "-";
+      const key = groupKey(d);
       prevMap.set(key, (prevMap.get(key) ?? 0) + (d.amount || 0));
     }
     const planMap = new Map<string, number>();
     for (const d of plan) {
-      const key = d.cost_lv3 || "-";
+      const key = groupKey(d);
       planMap.set(key, (planMap.get(key) ?? 0) + (d.amount || 0));
     }
     return Array.from(currMap.entries())
@@ -213,6 +240,53 @@ export function BizUnitCard({
       .sort((a, b) => b.amount - a.amount);
   };
 
+  // 인당 계산용 headcount 합 (mode에 따라 단일 월 또는 분기/YTD 3~N개월 합)
+  const getHeadcountSumForPeriod = (bu: BizUnit, yr: number, mo: number, md: Mode, yt: "actual" | "plan"): number => {
+    if (md === "monthly") {
+      return getMonthlyTotal(bu, yr, mo, "monthly", yt)?.headcount ?? 0;
+    }
+    // ytd or quarters: 범위 내 모든 월의 headcount 합산
+    const ranges: Record<string, [number, number]> = {
+      ytd: [1, mo],
+      q1: [1, 3], q2: [4, 6], q3: [7, 9], q4: [10, 12],
+    };
+    const [start, end] = ranges[md] ?? [1, mo];
+    let sum = 0;
+    for (let m = start; m <= end; m++) {
+      sum += getMonthlyTotal(bu, yr, m, "monthly", yt)?.headcount ?? 0;
+    }
+    return sum;
+  };
+  // 인건비 lv2에만 사용 — 미리 두 번(당년/전년) 계산해서 재사용
+  const currHeadcountSum = getHeadcountSumForPeriod(businessUnit, year, month, mode, yearType);
+  const prevHeadcountSum = getHeadcountSumForPeriod(businessUnit, year - 1, month, mode, "actual");
+
+  // 임의 biz_unit(문자열, MLB/KIDS/공통/경영지원 등) 기준 headcount 합계 (lv3용)
+  // monthly_total (MLB/KIDS/공통 등) 우선, 없으면 category_detail의 cost_lv3 headcount 합산 (경영지원 등)
+  const getRawHeadcountSum = (buName: string, yr: number, yt: "actual" | "plan"): number => {
+    const data = getAggregatedData();
+    let startM: number, endM: number;
+    if (mode === "monthly") { startM = endM = month; }
+    else if (mode === "ytd") { startM = 1; endM = month; }
+    else {
+      const q = { q1: [1, 3], q2: [4, 6], q3: [7, 9], q4: [10, 12] } as const;
+      [startM, endM] = q[mode as keyof typeof q];
+    }
+    // 1) monthly_total 기준
+    const mtSum = data.monthly_total
+      .filter((r) => r.biz_unit === buName && r.year === yr && (r.year_type ?? "actual") === yt && r.month >= startM && r.month <= endM)
+      .reduce((s, r) => s + (r.headcount || 0), 0);
+    if (mtSum > 0) return mtSum;
+    // 2) fallback: category_detail의 cost_lv3=buName + 인건비 하위 headcount 합산 (경영지원 등)
+    const cdSum = data.category_detail
+      .filter((r) => r.cost_lv3 === buName && r.cost_lv1 === "인건비" && r.year === yr && (r.year_type ?? "actual") === yt && r.month >= startM && r.month <= endM)
+      .reduce((s, r) => s + (r.headcount || 0), 0);
+    return cdSum;
+  };
+
+  // 인당 계산 대상 lv2: 기본급, 성과급충당금만
+  const PER_PERSON_LV2 = new Set(["기본급", "성과급충당금"]);
+
   // 진척률 컬러: 예상 pace(month/12) 기준 위/아래
   const usageColor = (v: number | null | undefined, expected: number | null) => {
     if (v == null || expected == null) return "text-gray-500";
@@ -224,12 +298,21 @@ export function BizUnitCard({
   const yoyClass = (y: number | null) => y == null ? "text-gray-500" : y >= 100 ? "text-red-600" : y === 0 ? "text-gray-500" : "text-blue-600";
   const diffClass = (d: number) => d >= 0 ? "text-red-600" : "text-blue-600";
 
+  // 컬럼 폭: 대분류는 minmax(0,180px) — 텍스트 담을 만큼만, 남는 공간 흡수 방지.
+  // 금액류는 실제 텍스트 길이 기준 px 고정 → 카드 폭과 무관하게 좌측 공백 최소.
+  const showAnnualColsTop = mode === "ytd";
+  const gridStyle = {
+    gridTemplateColumns: showAnnualColsTop
+      ? "minmax(0,150px) 64px 64px 70px 40px 64px 58px"
+      : "minmax(0,158px) 72px 72px 76px 40px",
+  };
+
   return (
-    <Card className="h-full flex flex-col shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg">
+    <Card className="flex flex-col shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg">
       {/* 헤더 - 그라데이션 배경 */}
-      <div className={`bg-gradient-to-r ${theme.headerGradient} px-4 py-3 text-white`}>
+      <div className={`${theme.headerBg} px-3 py-2 text-white`}>
         {/* 상단: 아이콘 + 브랜드명 */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-1.5">
           <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
             {typeof icon === "string" ? (
               <span className="text-sm sm:text-base">{icon}</span>
@@ -244,66 +327,52 @@ export function BizUnitCard({
           )}
         </div>
 
-        {/* 하단: YOY 박스들 - 브랜드/법인/공통 모두 판매매출 YOY + 영업비 YOY 표시 */}
-        <div className="flex gap-2">
-          {yoySales !== null && (
-            <div className="bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1.5 border border-white/30 flex-1">
-              <div className="flex flex-col">
-                <span className="text-[9px] sm:text-[10px] text-white/90 mb-1">{t("판매매출 YOY", lang)}</span>
-                <div className="flex items-center gap-1">
-                  {yoySales >= 100 ? (
-                    <TrendingUp className="w-3 h-3 text-white" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 text-white" />
-                  )}
-                  <span className="text-[10px] sm:text-xs font-bold text-white">
-                    {formatPercent(yoySales, 0)}
-                  </span>
-                </div>
-              </div>
+        {/* 하단: 3박스 — 컨텐츠 폭에 맞춰 자동 (전년대비가 가장 김) */}
+        <div className="flex gap-2 items-stretch">
+          {/* 총비용 박스 */}
+          <div className="bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1 border border-white/30 flex-none whitespace-nowrap">
+            <div className="text-[10.5px] text-white/90 mb-0.5">{t("총비용", lang)}</div>
+            <div className="text-[15px] font-bold text-white leading-tight">{totalExpense}</div>
+          </div>
+          {/* 전년대비 박스 (금액 + YoY%) — 가장 김, 남는 폭 흡수 */}
+          <div className="bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1 border border-white/30 flex-1 min-w-0 whitespace-nowrap">
+            <div className="text-[10.5px] text-white/90 mb-0.5">{t("전년대비", lang)}</div>
+            <div className="text-[15px] font-bold text-white leading-tight">
+              {totalExpenseChange ?? "-"}
+              {yoyExpense != null && (
+                <span className="ml-1 text-[13px] font-semibold">({formatPercent(yoyExpense, 0)})</span>
+              )}
             </div>
-          )}
-          {yoyExpense !== null && (
-            <div className="bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1.5 border border-white/30 flex-1">
-              <div className="flex flex-col">
-                <span className="text-[9px] sm:text-[10px] text-white/90 mb-1">{t("영업비 YOY", lang)}</span>
-                <div className="flex items-center gap-1">
-                  {yoyExpense >= 100 ? (
-                    <TrendingUp className="w-3 h-3 text-white" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 text-white" />
-                  )}
-                  <span className="text-[10px] sm:text-xs font-bold text-white">
-                    {formatPercent(yoyExpense, 0)}
-                  </span>
-                </div>
+          </div>
+          {/* 리테일 YoY 박스 */}
+          {yoySales !== null && (
+            <div className="bg-white/20 backdrop-blur-sm rounded-md px-2.5 py-1 border border-white/30 flex-none whitespace-nowrap">
+              <div className="text-[10.5px] text-white/90 mb-0.5">{t("리테일 YoY", lang)}</div>
+              <div className="flex items-center gap-1">
+                {yoySales >= 100 ? (
+                  <TrendingUp className="w-4 h-4 text-white" />
+                ) : (
+                  <TrendingDown className="w-4 h-4 text-white" />
+                )}
+                <span className="text-[15px] font-bold text-white leading-tight">
+                  {formatPercent(yoySales, 0)}
+                </span>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      <CardContent className="flex-1 flex flex-col p-4 bg-white">
-        {/* 주요 KPI */}
-        <div className="mb-4">
-          {/* 총비용 - 큰 글씨로, 왼쪽에 세로선 */}
-          <div className="flex items-start gap-2 mb-3">
-            <div className={`w-1 h-12 ${theme.accentColor} rounded-full`}></div>
-            <div>
-              <div className={`text-sm sm:text-base font-bold ${theme.primaryColor}`}>
-                {totalExpense}
-                {totalExpenseChange != null ? ` (${totalExpenseChange})` : ""}
-              </div>
-              <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 mt-1">{t("총 비용", lang)}</div>
-            </div>
-          </div>
+      <CardContent className="flex-1 flex flex-col p-3 bg-white">
+        {/* 주요 KPI (총비용은 헤더 박스로 이동, 여기선 브랜드일 때만 3-그리드 표시) */}
+        <div className="mb-2">
 
           {!isCommon && !isCorporate && (
             <>
               <div className="grid grid-cols-[1fr_2fr_1fr] gap-2">
                 {/* 영업비율 */}
                 {ratio !== null && (
-                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 min-h-[60px] flex flex-col justify-between">
+                  <div className="bg-gray-50 rounded-lg px-2.5 py-1.5 border border-gray-200 flex flex-col justify-between">
                     <div className="text-[11.4px] sm:text-[13.2px] font-semibold text-blue-600 break-words">{ratio}</div>
                     <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 break-words">{t("영업비율", lang)}</div>
                   </div>
@@ -311,53 +380,50 @@ export function BizUnitCard({
 
                 {/* 인원수 */}
                 {headcount !== null && (
-                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 min-h-[60px] flex flex-col justify-between">
+                  <div className="bg-gray-50 rounded-lg px-2.5 py-1.5 border border-gray-200 flex flex-col justify-between">
                     <div className="text-[11.4px] sm:text-[13.2px] font-semibold text-purple-600 break-words">
                       {t("기말", lang)}: {headcount}{headcountChange != null ? ` (${headcountChange})` : ""}
                     </div>
                     <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 break-words">
-                      {avgHeadcount != null 
+                      {avgHeadcount != null
                         ? `${t("평균", lang)}: ${avgHeadcount}${avgHeadcountChange != null ? ` (${avgHeadcountChange})` : ""}`
-                        : " "
-                      }
+                        : " "}
                     </div>
                   </div>
                 )}
 
                 {/* 판매매출 */}
                 {salesAmount !== null && (
-                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 min-h-[60px] flex flex-col justify-between">
+                  <div className="bg-gray-50 rounded-lg px-2.5 py-1.5 border border-gray-200 flex flex-col justify-between">
                     <div className="text-[11.4px] sm:text-[13.2px] font-semibold text-teal-600 break-words">{salesAmount}</div>
                     <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 break-words">{t("판매매출", lang)}</div>
                   </div>
                 )}
               </div>
-              {/* 인당 인건비/복리후생비 */}
+              {/* 인당 인건비/복리후생비 — 중앙 정렬 */}
               {(perPersonLaborCost || perPersonWelfareCost) && (
-                <div className="border-t border-gray-200 mt-3 pt-2">
-                  <div className="flex items-center justify-center gap-4 text-[10px] sm:text-xs">
-                    {perPersonLaborCost && (
-                      <span>
-                        <span className="text-gray-500 text-[11.4px] sm:text-[13.2px]">{t("인당 기본급", lang)}</span>{" "}
-                        <span className="font-semibold text-orange-600">{perPersonLaborCost}</span>
-                        {perPersonLaborCostYOY && (
-                          <span className="text-gray-400 text-[11.4px] sm:text-[13.2px] ml-1">({perPersonLaborCostYOY})</span>
-                        )}
-                      </span>
-                    )}
-                    {perPersonLaborCost && perPersonWelfareCost && (
-                      <span className="text-gray-300">|</span>
-                    )}
-                    {perPersonWelfareCost && (
-                      <span>
-                        <span className="text-gray-500 text-[11.4px] sm:text-[13.2px]">{t("인당복후비", lang)}</span>{" "}
-                        <span className="font-semibold text-pink-600">{perPersonWelfareCost}</span>
-                        {perPersonWelfareCostYOY && (
-                          <span className="text-gray-400 text-[11.4px] sm:text-[13.2px] ml-1">({perPersonWelfareCostYOY})</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
+                <div className="mt-1.5 flex items-center justify-center gap-4 text-[11.4px] sm:text-[13.2px] font-normal">
+                  {perPersonLaborCost && (
+                    <span>
+                      <span className="text-gray-500">{t("인당 기본급", lang)}</span>{" "}
+                      <span className="text-orange-600">{perPersonLaborCost}</span>
+                      {perPersonLaborCostYOY && (
+                        <span className="text-gray-400 ml-1">({perPersonLaborCostYOY})</span>
+                      )}
+                    </span>
+                  )}
+                  {perPersonLaborCost && perPersonWelfareCost && (
+                    <span className="text-gray-300">|</span>
+                  )}
+                  {perPersonWelfareCost && (
+                    <span>
+                      <span className="text-gray-500">{t("인당복후비", lang)}</span>{" "}
+                      <span className="text-pink-600">{perPersonWelfareCost}</span>
+                      {perPersonWelfareCostYOY && (
+                        <span className="text-gray-400 ml-1">({perPersonWelfareCostYOY})</span>
+                      )}
+                    </span>
+                  )}
                 </div>
               )}
             </>
@@ -367,56 +433,54 @@ export function BizUnitCard({
             <>
               <div className="grid grid-cols-[1fr_2fr_1fr] gap-2">
                 {ratio !== null && (
-                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 min-h-[60px] flex flex-col justify-between">
+                  <div className="bg-gray-50 rounded-lg px-2.5 py-1.5 border border-gray-200 flex flex-col justify-between">
                     <div className="text-[11.4px] sm:text-[13.2px] font-semibold text-blue-600 break-words">{ratio}</div>
                     <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 break-words">{t("영업비율", lang)}</div>
                   </div>
                 )}
                 {headcount !== null && (
-                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 min-h-[60px] flex flex-col justify-between">
+                  <div className="bg-gray-50 rounded-lg px-2.5 py-1.5 border border-gray-200 flex flex-col justify-between">
                     <div className="text-[11.4px] sm:text-[13.2px] font-semibold text-purple-600 break-words">
                       {t("기말", lang)}: {headcount}{headcountChange != null ? ` (${headcountChange})` : ""}
                     </div>
                     <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 break-words">
-                      {avgHeadcount != null 
+                      {avgHeadcount != null
                         ? `${t("평균", lang)}: ${avgHeadcount}${avgHeadcountChange != null ? ` (${avgHeadcountChange})` : ""}`
-                        : " "
-                      }
+                        : " "}
                     </div>
                   </div>
                 )}
                 {salesAmount !== null && (
-                  <div className="bg-gray-50 rounded-lg px-3 py-2 border border-gray-200 min-h-[60px] flex flex-col justify-between">
+                  <div className="bg-gray-50 rounded-lg px-2.5 py-1.5 border border-gray-200 flex flex-col justify-between">
                     <div className="text-[11.4px] sm:text-[13.2px] font-semibold text-teal-600 break-words">{salesAmount}</div>
                     <div className="text-[11.4px] sm:text-[13.2px] text-gray-500 break-words">{t("판매매출", lang)}</div>
                   </div>
                 )}
               </div>
+              {/* 인당 인건비/복리후생비 — 중앙 정렬 */}
               {(perPersonLaborCost || perPersonWelfareCost) && (
-                <div className="border-t border-gray-200 mt-3 pt-2">
-                  <div className="flex items-center justify-center gap-4 text-[10px] sm:text-xs">
-                    {perPersonLaborCost && (
-                      <span>
-                        <span className="text-gray-500 text-[11.4px] sm:text-[13.2px]">{t("인당 기본급", lang)}</span>{" "}
-                        <span className="font-semibold text-orange-600">{perPersonLaborCost}</span>
-                        {perPersonLaborCostYOY && (
-                          <span className="text-gray-400 text-[11.4px] sm:text-[13.2px] ml-1">({perPersonLaborCostYOY})</span>
-                        )}
-                      </span>
-                    )}
-                    {perPersonLaborCost && perPersonWelfareCost && (
-                      <span className="text-gray-300">|</span>
-                    )}
-                    {perPersonWelfareCost && (
-                      <span>
-                        <span className="text-gray-500 text-[11.4px] sm:text-[13.2px]">{t("인당복후비", lang)}</span>{" "}
-                        <span className="font-semibold text-pink-600">{perPersonWelfareCost}</span>
-                        {perPersonWelfareCostYOY && (
-                          <span className="text-gray-400 text-[11.4px] sm:text-[13.2px] ml-1">({perPersonWelfareCostYOY})</span>
-                        )}
-                      </span>
-                    )}
-                  </div>
+                <div className="mt-1.5 flex items-center justify-center gap-4 text-[11.4px] sm:text-[13.2px] font-normal">
+                  {perPersonLaborCost && (
+                    <span>
+                      <span className="text-gray-500">{t("인당 기본급", lang)}</span>{" "}
+                      <span className="text-orange-600">{perPersonLaborCost}</span>
+                      {perPersonLaborCostYOY && (
+                        <span className="text-gray-400 ml-1">({perPersonLaborCostYOY})</span>
+                      )}
+                    </span>
+                  )}
+                  {perPersonLaborCost && perPersonWelfareCost && (
+                    <span className="text-gray-300">|</span>
+                  )}
+                  {perPersonWelfareCost && (
+                    <span>
+                      <span className="text-gray-500">{t("인당복후비", lang)}</span>{" "}
+                      <span className="text-pink-600">{perPersonWelfareCost}</span>
+                      {perPersonWelfareCostYOY && (
+                        <span className="text-gray-400 ml-1">({perPersonWelfareCostYOY})</span>
+                      )}
+                    </span>
+                  )}
                 </div>
               )}
             </>
@@ -424,7 +488,7 @@ export function BizUnitCard({
         </div>
 
         {/* 대분류별 요약 - 테이블 형식 (헤더 문구 없이 표만 노출) */}
-        <div className="mt-2 pt-1 border-t border-gray-200">
+        <div className="mt-1 pt-1 border-t border-gray-200">
           {(() => {
             const showAnnualCols = mode === "ytd";
             // 예상 pace = 현재 월/12 × 100 (예: 7월이면 58%)
@@ -446,44 +510,45 @@ export function BizUnitCard({
 
             return (
               <>
-                {/* 테이블 헤더 */}
+                {/* 테이블 헤더 (한 줄, 부드러운 slate 배경) */}
                 {showAnnualCols ? (
-                  <div className="grid gap-1.5 text-[10.5px] sm:text-[11.5px] text-gray-500 mb-2 pb-1.5 border-b border-gray-200 font-medium" style={{ gridTemplateColumns: "repeat(14, minmax(0, 1fr))" }}>
-                    <div className="col-span-3">{t("대분류", lang)}</div>
-                    <div className="col-span-2 text-right">{t("금액", lang)}</div>
-                    <div className="col-span-2 text-right">{t("전년금액", lang)}</div>
-                    <div className="col-span-2 text-right">YOY{t("금액", lang)}</div>
-                    <div className="col-span-1 text-right">YoY</div>
-                    <div className="col-span-2 text-right border-l border-gray-200 pl-1.5">{t("연간계획", lang)}</div>
-                    <div className="col-span-2 text-right">
-                      {t("진척률", lang)} {expectedPacePct != null && <span className="text-gray-400">({expectedPacePct}%)</span>}
+                  <div className="grid gap-1 text-[10.5px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5 px-1.5 py-1 bg-slate-50 rounded whitespace-nowrap" style={gridStyle}>
+                    <div>{t("대분류", lang)}</div>
+                    <div className="text-center">{t("금액", lang)}</div>
+                    <div className="text-center">{t("전년금액", lang)}</div>
+                    <div className="text-center">YOY{t("금액", lang)}</div>
+                    <div className="text-center">YoY</div>
+                    <div className="text-center border-l border-slate-200 pl-1.5">{t("연간계획", lang)}</div>
+                    <div className="text-center">
+                      {t("진척률", lang)}
+                      {expectedPacePct != null && <span className="ml-0.5 text-slate-400 normal-case">({expectedPacePct}%)</span>}
                     </div>
                   </div>
                 ) : (
-                  <div className="grid gap-1.5 text-[11px] sm:text-[12.5px] text-gray-500 mb-2 pb-1.5 border-b border-gray-200 font-medium" style={{ gridTemplateColumns: "repeat(14, minmax(0, 1fr))" }}>
-                    <div className="col-span-4">{t("대분류", lang)}</div>
-                    <div className="col-span-3 text-right">{t("금액", lang)}</div>
-                    <div className="col-span-3 text-right">{t("전년금액", lang)}</div>
-                    <div className="col-span-2 text-right">YOY{t("금액", lang)}</div>
-                    <div className="col-span-2 text-right">YoY</div>
+                  <div className="grid gap-1 text-[11px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5 px-1.5 py-1 bg-slate-50 rounded whitespace-nowrap" style={gridStyle}>
+                    <div>{t("대분류", lang)}</div>
+                    <div className="text-center">{t("금액", lang)}</div>
+                    <div className="text-center">{t("전년금액", lang)}</div>
+                    <div className="text-center">YOY{t("금액", lang)}</div>
+                    <div className="text-center">YoY</div>
                   </div>
                 )}
 
-                {/* 합계 행 (굵게, 첫 행) */}
-                <div className="grid gap-1.5 items-center py-1.5 mb-1 border-b border-gray-300 text-[11.5px] sm:text-[13px] font-bold text-gray-900" style={{ gridTemplateColumns: "repeat(14, minmax(0, 1fr))" }}>
-                  <div className={`${showAnnualCols ? "col-span-3" : "col-span-4"}`}>{t("합계", lang)}</div>
-                  <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right`}>{formatK(totalCurr)}</div>
-                  <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right text-gray-500 font-medium`}>{formatK(totalPrev)}</div>
-                  <div className={`${showAnnualCols ? "col-span-2" : "col-span-2"} text-right ${diffClass(totalDiff)}`}>
+                {/* 합계 행 (굵게, 배경, 첫 행) */}
+                <div className="grid gap-1 items-center py-1.5 mb-1 px-1.5 rounded bg-slate-100/70 text-[12.5px] sm:text-[13px] font-bold text-gray-900" style={gridStyle}>
+                  <div>{t("합계", lang)}</div>
+                  <div className="text-right">{formatK(totalCurr)}</div>
+                  <div className="text-right text-gray-500 font-medium">{formatK(totalPrev)}</div>
+                  <div className={`text-right ${diffClass(totalDiff)}`}>
                     {totalDiff >= 0 ? "+" : ""}{formatK(totalDiff)}
                   </div>
-                  <div className={`${showAnnualCols ? "col-span-1" : "col-span-2"} text-right ${yoyClass(totalYoy)}`}>
+                  <div className={`text-right ${yoyClass(totalYoy)}`}>
                     {totalYoy != null ? formatPercent(totalYoy, 0) : "-"}
                   </div>
                   {showAnnualCols && (
                     <>
-                      <div className="col-span-2 text-right border-l border-gray-200 pl-1.5">{formatK(totalAnnualPlan)}</div>
-                      <div className={`col-span-2 text-right ${usageColor(totalUsagePct)}`}>
+                      <div className="text-right border-l border-gray-200 pl-1.5">{formatK(totalAnnualPlan)}</div>
+                      <div className={`text-right ${usageColor(totalUsagePct)}`}>
                         {totalUsagePct != null ? formatPercent(totalUsagePct, 0) : "-"}
                       </div>
                     </>
@@ -502,34 +567,34 @@ export function BizUnitCard({
               const expectedPacePctForRow = showAnnualCols ? Math.round((month / 12) * 100) : null;
               return (
                 <Fragment key={`${lv1Key}-${index}`}>
-                  {/* lv1 행 */}
+                  {/* lv1 행 (헤더와 좌우 padding 통일) */}
                   <button
                     type="button"
                     onClick={() => toggle(lv1Key)}
-                    className="w-full grid gap-1.5 items-center hover:bg-gray-50 py-1 rounded text-left transition-colors"
-                    style={{ gridTemplateColumns: "repeat(14, minmax(0, 1fr))" }}
+                    className="w-full grid gap-1 items-center hover:bg-gray-50 py-1 px-1.5 rounded text-left transition-colors"
+                    style={gridStyle}
                     aria-expanded={lv1Open}
                   >
-                    <div className={`${showAnnualCols ? "col-span-3" : "col-span-4"} text-gray-900 flex items-center justify-between gap-1 pr-1`}>
+                    <div className="text-gray-900 flex items-center justify-between gap-1 pr-1 min-w-0">
                       <span className="truncate">{getDisplayLabel(detail.label, detail.labelCn, lang)}</span>
                       {lv1Open
                         ? <Minus strokeWidth={1.5} className="w-3 h-3 text-gray-300 flex-shrink-0" />
                         : <Plus  strokeWidth={1.5} className="w-3 h-3 text-gray-300 flex-shrink-0" />}
                     </div>
-                    <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right font-medium text-gray-900`}>{detail.amount}</div>
-                    <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right text-gray-500`}>{formatK(detail.prevAmount ?? 0)}</div>
-                    <div className={`${showAnnualCols ? "col-span-2" : "col-span-2"} text-right ${diffClass(detail.amountDiff)}`}>
+                    <div className={`text-right font-medium text-gray-900 ${theme.cellBg} -my-1 py-1`}>{detail.amount}</div>
+                    <div className="text-right text-gray-500">{formatK(detail.prevAmount ?? 0)}</div>
+                    <div className={`text-right ${diffClass(detail.amountDiff)}`}>
                       {detail.amountDiff >= 0 ? "+" : ""}{formatK(detail.amountDiff)}
                     </div>
-                    <div className={`${showAnnualCols ? "col-span-1" : "col-span-2"} text-right ${yoyClass(detail.yoy)}`}>
+                    <div className={`text-right ${yoyClass(detail.yoy)}`}>
                       {detail.yoy !== null ? formatPercent(detail.yoy, 0) : "0.0%"}
                     </div>
                     {showAnnualCols && (
                       <>
-                        <div className="col-span-2 text-right text-gray-600 border-l border-gray-200 pl-1.5">
+                        <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
                           {detail.annualPlan != null ? formatK(detail.annualPlan) : "-"}
                         </div>
-                        <div className={`col-span-2 text-right ${usageColor(detail.usagePct, expectedPacePctForRow)}`}>
+                        <div className={`text-right ${theme.cellBg} -my-1 py-1 ${usageColor(detail.usagePct, expectedPacePctForRow)}`}>
                           {detail.usagePct != null ? formatPercent(detail.usagePct, 0) : "-"}
                         </div>
                       </>
@@ -537,77 +602,136 @@ export function BizUnitCard({
                   </button>
                   {/* lv2 행 (lv1 펼침 시) */}
                   {lv1Open && (
-                    <div className="mb-0.5 pl-3 space-y-0.5">
+                    <div className="mb-0.5 space-y-0.5">
                       {getLv2Rows(lv1Key).map((c2) => {
                         const lv2Key = `${lv1Key}|${c2.label}`;
                         const lv2Open = isExpanded(lv2Key);
-                        // 하위 lv3 존재 여부는 항상 계산 (헤더에 [+] 표시용)
                         const lv3RowsAll = getLv3Rows(lv1Key, c2.label);
                         const hasLv3 = lv3RowsAll.length > 0;
                         const lv3Rows = lv2Open ? lv3RowsAll : [];
+                        // 인당 계산은 인건비 하위 중 기본급/성과급충당금만 대상
+                        const isLaborLv2 = lv1Key === "인건비" && PER_PERSON_LV2.has(c2.label) && currHeadcountSum > 0;
+                        const perCurr = isLaborLv2 ? c2.amount / currHeadcountSum : null;
+                        const perPrev = isLaborLv2 && prevHeadcountSum > 0 ? c2.prevAmount / prevHeadcountSum : null;
                         return (
                           <Fragment key={lv2Key}>
                             <button
                               type="button"
                               onClick={() => toggle(lv2Key)}
-                              className="w-full grid gap-1.5 items-center py-1 hover:bg-gray-50 rounded text-left"
-                              style={{ gridTemplateColumns: "repeat(14, minmax(0, 1fr))" }}
+                              className="w-full grid gap-1.5 items-center py-0.5 hover:bg-gray-50 rounded text-left text-[11.5px]"
+                              style={gridStyle}
                               aria-expanded={lv2Open}
                             >
-                              <div className={`${showAnnualCols ? "col-span-3" : "col-span-4"} text-gray-700 flex items-center justify-between gap-1 pr-1`}>
+                              <div className="text-gray-700 flex items-center justify-between gap-1 pr-1 pl-3 min-w-0">
                                 <span className="truncate" title={getDisplayLabel(c2.label, c2.labelCn, lang)}>{getDisplayLabel(c2.label, c2.labelCn, lang)}</span>
                                 {hasLv3 && (lv2Open
                                   ? <Minus strokeWidth={1.5} className="w-2.5 h-2.5 text-gray-300 flex-shrink-0" />
                                   : <Plus  strokeWidth={1.5} className="w-2.5 h-2.5 text-gray-300 flex-shrink-0" />)}
                               </div>
-                              <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right text-gray-700`}>{formatK(c2.amount)}</div>
-                              <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right text-gray-500`}>{formatK(c2.prevAmount)}</div>
-                              <div className={`${showAnnualCols ? "col-span-2" : "col-span-2"} text-right ${diffClass(c2.amountDiff)}`}>
+                              <div className={`text-right text-gray-700 ${theme.cellBg} -my-0.5 py-0.5`}>{formatK(c2.amount)}</div>
+                              <div className="text-right text-gray-500">{formatK(c2.prevAmount)}</div>
+                              <div className={`text-right ${diffClass(c2.amountDiff)}`}>
                                 {c2.amountDiff >= 0 ? "+" : ""}{formatK(c2.amountDiff)}
                               </div>
-                              <div className={`${showAnnualCols ? "col-span-1" : "col-span-2"} text-right ${yoyClass(c2.yoy)}`}>
+                              <div className={`text-right ${yoyClass(c2.yoy)}`}>
                                 {c2.yoy != null ? formatPercent(c2.yoy, 0) : "-"}
                               </div>
                               {showAnnualCols && (
                                 <>
-                                  <div className="col-span-2 text-right text-gray-600 border-l border-gray-100 pl-1.5">
+                                  <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
                                     {c2.annualPlan != null ? formatK(c2.annualPlan) : "-"}
                                   </div>
-                                  <div className={`col-span-2 text-right ${usageColor(c2.usagePct, expectedPacePctForRow)}`}>
+                                  <div className={`text-right ${theme.cellBg} -my-0.5 py-0.5 ${usageColor(c2.usagePct, expectedPacePctForRow)}`}>
                                     {c2.usagePct != null ? formatPercent(c2.usagePct, 0) : "-"}
                                   </div>
                                 </>
                               )}
                             </button>
-                            {/* lv3 행 (lv2 펼침 시) */}
+                            {/* 인건비 lv2 하위: 인당 정보 — 각 값에 알약(pill) 배경 */}
+                            {isLaborLv2 && perCurr != null && (() => {
+                              const perDiff = perPrev != null ? (perCurr - perPrev) / 1000 : null;
+                              const perYoy  = perPrev != null && perPrev > 0 ? (perCurr / perPrev) * 100 : null;
+                              return (
+                                <div className="grid gap-1 items-center px-1.5 py-0.5 mb-0.5 text-[10px] italic"
+                                     style={gridStyle}>
+                                  <div />
+                                  <div className="text-right text-gray-500">
+                                    {(perCurr / 1000).toFixed(1)}K/인
+                                  </div>
+                                  <div className="text-right text-gray-400">
+                                    {perPrev != null ? `${(perPrev / 1000).toFixed(1)}K/인` : ""}
+                                  </div>
+                                  <div className={`text-right ${perDiff != null && perDiff >= 0 ? "text-red-400" : "text-blue-400"}`}>
+                                    {perDiff != null ? `${perDiff >= 0 ? "+" : ""}${perDiff.toFixed(1)}K/인` : ""}
+                                  </div>
+                                  <div className={`text-right ${perYoy != null && perYoy >= 100 ? "text-red-400" : "text-blue-400"}`}>
+                                    {perYoy != null ? formatPercent(perYoy, 0) : ""}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                            {/* lv3 행 (lv2 펼침 시) — 인건비 하위 대상 lv2면 사업부별 인당도 추가 */}
                             {lv2Open && lv3Rows.length > 0 && (
-                              <div className="pl-3 space-y-0.5">
-                                {lv3Rows.map((c3, ci3) => (
-                                  <div key={`${lv2Key}-c3-${ci3}`} className="grid gap-1.5 items-center py-1"
-                                       style={{ gridTemplateColumns: "repeat(14, minmax(0, 1fr))" }}>
-                                    <div className={`${showAnnualCols ? "col-span-3" : "col-span-4"} text-gray-500 truncate`} title={getDisplayLabel(c3.label, c3.labelCn, lang)}>
+                              <div className="space-y-0.5">
+                                {lv3Rows.map((c3, ci3) => {
+                                  // 인건비 > 기본급/성과급충당금 > 사업부 → 사업부별 인당
+                                  const showLv3PerPerson = isLaborLv2;
+                                  const buHc  = showLv3PerPerson ? getRawHeadcountSum(c3.label, year, yearType) : 0;
+                                  const buHcPrev = showLv3PerPerson ? getRawHeadcountSum(c3.label, year - 1, "actual") : 0;
+                                  const c3PerCurr = showLv3PerPerson && buHc > 0 ? c3.amount / buHc : null;
+                                  const c3PerPrev = showLv3PerPerson && buHcPrev > 0 ? c3.prevAmount / buHcPrev : null;
+                                  return (
+                                  <React.Fragment key={`${lv2Key}-c3-${ci3}`}>
+                                  <div className="grid gap-1.5 items-center py-0.5 text-[11px]"
+                                       style={gridStyle}>
+                                    <div className="text-gray-500 truncate pl-6 min-w-0" title={getDisplayLabel(c3.label, c3.labelCn, lang)}>
                                       {getDisplayLabel(c3.label, c3.labelCn, lang)}
                                     </div>
-                                    <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right text-gray-600`}>{formatK(c3.amount)}</div>
-                                    <div className={`${showAnnualCols ? "col-span-2" : "col-span-3"} text-right text-gray-400`}>{formatK(c3.prevAmount)}</div>
-                                    <div className={`${showAnnualCols ? "col-span-2" : "col-span-2"} text-right ${diffClass(c3.amountDiff)}`}>
+                                    <div className={`text-right text-gray-600 ${theme.cellBg} -my-0.5 py-0.5`}>{formatK(c3.amount)}</div>
+                                    <div className="text-right text-gray-400">{formatK(c3.prevAmount)}</div>
+                                    <div className={`text-right ${diffClass(c3.amountDiff)}`}>
                                       {c3.amountDiff >= 0 ? "+" : ""}{formatK(c3.amountDiff)}
                                     </div>
-                                    <div className={`${showAnnualCols ? "col-span-1" : "col-span-2"} text-right ${yoyClass(c3.yoy)}`}>
+                                    <div className={`text-right ${yoyClass(c3.yoy)}`}>
                                       {c3.yoy != null ? formatPercent(c3.yoy, 0) : "-"}
                                     </div>
                                     {showAnnualCols && (
                                       <>
-                                        <div className="col-span-2 text-right text-gray-500 border-l border-gray-100 pl-1.5">
+                                        <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
                                           {c3.annualPlan != null ? formatK(c3.annualPlan) : "-"}
                                         </div>
-                                        <div className={`col-span-2 text-right ${usageColor(c3.usagePct, expectedPacePctForRow)}`}>
+                                        <div className={`text-right ${theme.cellBg} -my-0.5 py-0.5 ${usageColor(c3.usagePct, expectedPacePctForRow)}`}>
                                           {c3.usagePct != null ? formatPercent(c3.usagePct, 0) : "-"}
                                         </div>
                                       </>
                                     )}
                                   </div>
-                                ))}
+                                  {/* lv3 사업부별 인당 — pill 스타일 + YoY 금액 */}
+                                  {showLv3PerPerson && c3PerCurr != null && (() => {
+                                    const c3PerDiff = c3PerPrev != null ? (c3PerCurr - c3PerPrev) / 1000 : null;
+                                    const c3PerYoy  = c3PerPrev != null && c3PerPrev > 0 ? (c3PerCurr / c3PerPrev) * 100 : null;
+                                    return (
+                                      <div className="grid gap-1 items-center px-1.5 py-0.5 mb-0.5 text-[10px] italic"
+                                           style={gridStyle}>
+                                        <div />
+                                        <div className="text-right text-gray-500">
+                                          {(c3PerCurr / 1000).toFixed(1)}K/인
+                                        </div>
+                                        <div className="text-right text-gray-400">
+                                          {c3PerPrev != null ? `${(c3PerPrev / 1000).toFixed(1)}K/인` : ""}
+                                        </div>
+                                        <div className={`text-right ${c3PerDiff != null && c3PerDiff >= 0 ? "text-red-400" : "text-blue-400"}`}>
+                                          {c3PerDiff != null ? `${c3PerDiff >= 0 ? "+" : ""}${c3PerDiff.toFixed(1)}K/인` : ""}
+                                        </div>
+                                        <div className={`text-right ${c3PerYoy != null && c3PerYoy >= 100 ? "text-red-400" : "text-blue-400"}`}>
+                                          {c3PerYoy != null ? formatPercent(c3PerYoy, 0) : ""}
+                                        </div>
+                                      </div>
+                                    );
+                                  })()}
+                                  </React.Fragment>
+                                  );
+                                })}
                               </div>
                             )}
                           </Fragment>

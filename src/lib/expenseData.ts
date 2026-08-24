@@ -637,28 +637,30 @@ export function getMonthlyTrend(
   yearType: 'actual' | 'plan' = 'actual'
 ): MonthlyTotal[] {
   const data = getData();
-  // 법인인 경우 4개 사업부 합계 계산
+  // 법인인 경우 4개 사업부 합계 계산 (매출은 공통 제외 — 공통의 sales는 이미 브랜드 매출 합계라 이중집계 방지)
   if (bizUnit === "법인") {
     const allTrends = new Map<number, MonthlyTotal>();
-    
+
     for (const bu of CORPORATE_BIZ_UNITS) {
       const buTrends = getMonthlyTrend(bu as BizUnit, year, mode, yearType);
-      
+      const includeSales = (CORPORATE_SALES_BIZ_UNITS as readonly string[]).includes(bu);
+
       buTrends.forEach((item) => {
         if (allTrends.has(item.month)) {
           const existing = allTrends.get(item.month)!;
           existing.amount += item.amount;
-          existing.sales += item.sales;
+          if (includeSales) existing.sales += item.sales;
           existing.headcount = (existing.headcount || 0) + (item.headcount || 0);
         } else {
           allTrends.set(item.month, {
             ...item,
+            sales: includeSales ? item.sales : 0,
             biz_unit: "법인",
           });
         }
       });
     }
-    
+
     return Array.from(allTrends.values()).sort((a, b) => a.month - b.month);
   }
 
@@ -852,12 +854,12 @@ export function getAvailableYears(): number[] {
   return data.metadata.years.sort((a, b) => b - a);
 }
 
-// 해당 연도에서 3개월이 모두 amount>0인 분기만 반환 (예: 1~5월 데이터면 [1] = 1분기만 완성)
+// 해당 연도에서 최소 한 달이라도 amount>0인 분기 반환 (진행 중인 분기도 활성)
 export function getAvailableQuarters(year: number, yearType: 'actual' | 'plan' = 'actual'): (1 | 2 | 3 | 4)[] {
   const months = new Set(getAvailableMonths(year, yearType));
   const result: (1 | 2 | 3 | 4)[] = [];
   const check = (q: 1 | 2 | 3 | 4, ms: number[]) => {
-    if (ms.every((m) => months.has(m))) result.push(q);
+    if (ms.some((m) => months.has(m))) result.push(q);
   };
   check(1, [1, 2, 3]);
   check(2, [4, 5, 6]);

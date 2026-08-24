@@ -662,7 +662,7 @@ function TopSummaryCards({ data }: { data: TopSummary }) {
       <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
         <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📊 YTD 전체 총평 · 해석</div>
         {data.overall && (
-          <div className="text-[12px] leading-[1.65] text-slate-700">
+          <div className="text-[12px] leading-[1.5] text-slate-700">
             <div>
               법인 누적 비용률 (리테일매출 대비) YoY <b className="text-slate-900">{data.overall.delta}</b> ·{" "}
               <b style={{ color: verdictColor }}>{data.overall.verdict}</b>
@@ -709,7 +709,7 @@ function TopSummaryCards({ data }: { data: TopSummary }) {
       {/* TOP 3 */}
       <div className="rounded-lg p-3 bg-[#F8FAFF] border border-[#E0E7FF]">
         <div className="text-[11px] font-bold text-[#4338CA] mb-1.5">📌 YTD 주요 비용 변동 원인 TOP 3</div>
-        <div className="text-[12px] leading-[1.7] space-y-0.5">
+        <div className="text-[12px] leading-[1.5] space-y-0.5">
           {data.top3.map((t, i) => {
             const positive = t.delta.startsWith("+");
             return (
@@ -751,7 +751,7 @@ function ExecSummaryHeader({
       <div className="bg-purple-50 px-5 py-3 space-y-1.5">
         {bullets.length > 0 ? (
           bullets.map((b, i) => (
-            <div key={i} className="flex items-start gap-2.5 text-[13.5px] text-slate-700 leading-[1.6]">
+            <div key={i} className="flex items-start gap-2.5 text-[13.5px] text-slate-700 leading-[1.5]">
               <span className="text-purple-600 font-bold flex-shrink-0 mt-px">▸</span>
               <span>{highlightInsight(b)}</span>
             </div>
@@ -1622,7 +1622,7 @@ function DetailedSections({ markdown }: { markdown: string }) {
     hr: () => <hr className="border-slate-100 my-4" />,
     blockquote: ({ children, ...props }: React.HTMLAttributes<HTMLQuoteElement>) => (
       <blockquote
-        className="border-l-2 border-indigo-300 pl-3.5 text-[13px] text-slate-700 bg-indigo-50/60 py-2.5 my-2 rounded-r-md leading-[1.6]"
+        className="border-l-2 border-indigo-300 pl-3.5 text-[13px] text-slate-700 bg-indigo-50/60 py-2.5 my-2 rounded-r-md leading-[1.5]"
         {...props}
       >
         {children}
@@ -1631,7 +1631,7 @@ function DetailedSections({ markdown }: { markdown: string }) {
   };
 
   return (
-    <div className="border-t border-slate-200 pt-5 mt-2 space-y-4">
+    <div className="border-t border-slate-200 pt-5 mt-2 space-y-2.5">
       {parts.map((section, i) => {
         const lines = section.trimStart().split("\n");
         const titleLine = lines[0] ?? "";
@@ -1937,8 +1937,9 @@ ${inner}
     <div className={inline
       ? "flex flex-col bg-gray-100 rounded-2xl border border-slate-200 w-full"
       : "relative flex flex-col bg-gray-100 rounded-2xl shadow-2xl w-[96vw] max-w-6xl h-[94vh]"}>
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-5 py-3 bg-white rounded-t-2xl border-b shrink-0">
+      {/* Top bar — inline 모드에서는 전환탭 라벨과 중복이라 전체 숨김 */}
+      {!inline && (
+      <div className="flex items-center justify-between px-5 py-2 bg-white rounded-t-2xl border-b shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="w-4 h-4 text-purple-600" />
           <span className="font-bold text-gray-800 text-sm">
@@ -1950,30 +1951,18 @@ ${inner}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {isGenerated && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownload}
-              className="text-xs h-7 gap-1"
-            >
-              <Download className="w-3 h-3" />
-              HTML
-            </Button>
-          )}
-          {!inline && (
-            <button
-              onClick={() => {
-                abortRef.current?.abort();
-                onClose();
-              }}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <button
+            onClick={() => {
+              abortRef.current?.abort();
+              onClose();
+            }}
+            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
+      )}
 
       {/* Scrollable content */}
       <div ref={scrollRef} className={inline ? "p-4" : "flex-1 overflow-y-auto p-4"}>
@@ -2135,7 +2124,7 @@ ${inner}
               {(() => {
                 const [riskLeft, riskRight] = splitRiskTableMarkdown(report.riskTable);
                 return (
-                  <div className="mb-5 space-y-4">
+                  <div className="mb-5 space-y-2.5">
                     <TableBox title="YOY 이상 신호" markdown={report.yoyTable} accent="amber" />
                     {riskRight ? (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

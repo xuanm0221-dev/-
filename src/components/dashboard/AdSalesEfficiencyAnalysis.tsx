@@ -16,7 +16,6 @@ import {
   ReferenceLine,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { KpiCard } from "./KpiCard";
 import {
   getAdSalesAnalysisData,
   type BizUnit,
@@ -37,7 +36,7 @@ import {
 import { formatK, formatM, formatPercent, formatRangeWithCommas } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
-import { AlertTriangle, TrendingUp, Target, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Target } from "lucide-react";
 
 interface AdSalesEfficiencyAnalysisProps {
   bizUnit: BizUnit;
@@ -53,10 +52,9 @@ export function AdSalesEfficiencyAnalysis({
   yearType = 'actual',
 }: AdSalesEfficiencyAnalysisProps) {
   const { lang } = useLanguage();
-  const [showCharts, setShowCharts] = useState(false);
-  const [axisFontSize, setAxisFontSize] = useState(16);
+  const [axisFontSize, setAxisFontSize] = useState(11);
   useEffect(() => {
-    const update = () => setAxisFontSize(window.innerWidth < 640 ? 12 : window.innerWidth < 1024 ? 16 : 20);
+    const update = () => setAxisFontSize(window.innerWidth < 640 ? 10 : window.innerWidth < 1024 ? 11 : 12);
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
@@ -172,36 +170,65 @@ export function AdSalesEfficiencyAnalysis({
           className="absolute left-0 top-0 bottom-0 w-1"
           style={{ backgroundColor: navyColor }}
         />
-        <CardHeader className="pl-5 flex flex-row justify-between items-center">
-          <CardTitle className="text-xs sm:text-sm lg:text-lg" style={{ color: navyColor }}>
-            광고비 효율분석
+        <CardHeader className="pl-5">
+          <CardTitle className="text-[19px] font-bold tracking-tight" style={{ color: navyColor }}>
+            {t("광고비 효율분석", lang)}
           </CardTitle>
-          <button
-            type="button"
-            onClick={() => setShowCharts((v) => !v)}
-            className="flex items-center gap-1 text-sm font-medium hover:underline"
-            style={{ color: navyColor }}
-          >
-            {showCharts ? "차트 접기" : "차트 펼치기"}
-            {showCharts ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
         </CardHeader>
         <CardContent className="pl-5">
-          <div className="flex flex-wrap items-stretch gap-4">
-            <KpiCard
-              title="평균 ROAS"
-              value={avgROAS}
-              description="광고비 1원당 매출 (아래 차트와 연동)"
-            />
+          <div className="flex flex-wrap items-stretch gap-3">
+            {/* 평균 ROAS + 월별 표 (git 참고) */}
+            <div className="min-w-[240px] border border-gray-200 rounded-lg p-3 bg-white">
+              <div className="text-[10px] font-semibold mb-1" style={{ color: navyColor }}>평균 ROAS</div>
+              <div className="text-[18px] font-bold mb-1" style={{ color: navyColor }}>{avgROAS.toFixed(2)}</div>
+              <div className="text-[10px] text-gray-500 mb-1.5">= 월별 ROAS 평균 (매출 ÷ 광고비)</div>
+              <table className="w-full text-[10px] border border-gray-200 border-collapse">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-1.5 py-0.5 border border-gray-200 text-left font-semibold text-gray-700">{t("월", lang)}</th>
+                    <th className="px-1.5 py-0.5 border border-gray-200 text-right font-semibold text-gray-700">{t("매출", lang)}(M)</th>
+                    <th className="px-1.5 py-0.5 border border-gray-200 text-right font-semibold text-gray-700">{t("광고비", lang)}(K)</th>
+                    <th className="px-1.5 py-0.5 border border-gray-200 text-right font-semibold text-gray-700">ROAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const totalSales = monthlyROAS.reduce((s, d) => s + d.sales, 0);
+                    const totalAd = monthlyROAS.reduce((s, d) => s + d.adSpend, 0);
+                    const roasSum = totalAd > 0 ? totalSales / totalAd : 0;
+                    const fmt = (n: number) => Math.round(n).toLocaleString();
+                    return (
+                      <tr className="bg-slate-100 font-bold">
+                        <td className="px-1.5 py-0.5 border border-gray-200" style={{ color: navyColor }}>{t("합계", lang)}</td>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-right" style={{ color: navyColor }}>{fmt(totalSales / 1_000_000)}</td>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-right" style={{ color: navyColor }}>{fmt(totalAd / 1000)}</td>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-right" style={{ color: navyColor }}>{roasSum.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })()}
+                  {monthlyROAS.map(d => {
+                    const fmt = (n: number) => Math.round(n).toLocaleString();
+                    return (
+                      <tr key={d.month}>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-gray-700">{d.month}</td>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-right text-gray-700">{fmt(d.sales / 1_000_000)}</td>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-right text-gray-700">{fmt(d.adSpend / 1000)}</td>
+                        <td className="px-1.5 py-0.5 border border-gray-200 text-right font-bold" style={{ color: navyColor }}>{d.roas.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
             <div
-              className="flex items-center gap-4 px-4 py-3 rounded-lg border-2 min-w-[200px]"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg border-2 min-w-[200px]"
               style={{
                 backgroundColor: efficiencyGrade.bgColor,
                 borderColor: efficiencyGrade.color,
               }}
             >
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold border-2 flex-shrink-0"
+                className="w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-bold border-2 flex-shrink-0"
                 style={{
                   color: efficiencyGrade.color,
                   borderColor: efficiencyGrade.color,
@@ -209,49 +236,36 @@ export function AdSalesEfficiencyAnalysis({
               >
                 {efficiencyGrade.grade}
               </div>
-              <div className="min-w-0 space-y-1">
-                <div className="text-xs font-bold" style={{ color: efficiencyGrade.color }}>
+              <div className="min-w-0 space-y-0.5">
+                <div className="text-[10px] font-bold" style={{ color: efficiencyGrade.color }}>
                   광고 효율 등급
                 </div>
-                <div className="text-xs mt-0.5" style={{ color: efficiencyGrade.color }}>
+                <div className="text-[10px] mt-0.5 leading-snug" style={{ color: efficiencyGrade.color }}>
                   <span className="font-medium">판정 이유: </span>
                   {efficiencyGrade.reason}
                 </div>
-                <div className="text-xs" style={{ color: efficiencyGrade.color }}>
+                <div className="text-[10px] leading-snug" style={{ color: efficiencyGrade.color }}>
                   <span className="font-medium">권장 액션: </span>
                   {efficiencyGrade.action}
                 </div>
                 {saturation.hasSaturation && (
-                  <div className="text-xs" style={{ color: efficiencyGrade.color }}>
+                  <div className="text-[10px] leading-snug" style={{ color: efficiencyGrade.color }}>
                     <span className="font-medium">광고 포화 신호: </span>
                     {saturation.message}
                   </div>
                 )}
               </div>
             </div>
-            <Card className="flex-1 min-w-[220px] border rounded-lg p-4 bg-gray-50/80">
+            {/* 인사이트 1~6 세로 하나 카드로 통합 */}
+            <Card className="flex-1 min-w-[220px] border rounded-lg p-3 bg-gray-50/80">
               <CardContent className="p-0">
-                <div className="space-y-2">
-                  {insights.slice(0, 3).map((insight, index) => (
+                <div className="space-y-1.5">
+                  {insights.slice(0, 6).map((insight, index) => (
                     <div key={index} className="flex items-start gap-2">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                      <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[9px] font-bold flex-shrink-0">
                         {index + 1}
                       </span>
-                      <p className="text-xs text-gray-700 flex-1 leading-snug">{insight}</p>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="flex-1 min-w-[220px] border rounded-lg p-4 bg-gray-50/80">
-              <CardContent className="p-0">
-                <div className="space-y-2">
-                  {insights.slice(3, 6).map((insight, index) => (
-                    <div key={index} className="flex items-start gap-2">
-                      <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        {index + 4}
-                      </span>
-                      <p className="text-xs text-gray-700 flex-1 leading-snug">{insight}</p>
+                      <p className="text-[10px] text-gray-700 flex-1 leading-snug">{insight}</p>
                     </div>
                   ))}
                 </div>
@@ -261,8 +275,8 @@ export function AdSalesEfficiencyAnalysis({
         </CardContent>
       </Card>
 
-      {showCharts && (
-      <>
+      {/* 2행: 월별 ROAS 추이 | 광고비 구간별 효율 분석 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* 월별 ROAS 추이 (광고비/매출 막대 + ROAS 선, 이중 Y축) */}
       <Card style={{ borderColor: navyColor, borderWidth: "1px" }}>
         <div
@@ -270,15 +284,17 @@ export function AdSalesEfficiencyAnalysis({
           style={{ backgroundColor: navyColor }}
         />
         <CardHeader className="pl-5">
-          <CardTitle className="text-xs sm:text-sm lg:text-lg" style={{ color: navyColor }}>
+          <CardTitle className="text-[13px] font-bold" style={{ color: navyColor }}>
             월별 ROAS 추이 (광고비 1CNY당 매출 추이) | 평균 {avgROAS.toFixed(2)}
           </CardTitle>
         </CardHeader>
         <CardContent className="pl-5">
-          <ResponsiveContainer width="100%" height={340}>
+          <ResponsiveContainer width="100%" height={300}>
             <ComposedChart
               data={monthlyROAS}
-              margin={{ top: 20, right: 90, bottom: 20, left: 50 }}
+              margin={{ top: 20, right: 70, bottom: 20, left: 20 }}
+              barCategoryGap="25%"
+              barGap={2}
             >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" tick={{ fontSize: axisFontSize }} />
@@ -290,8 +306,11 @@ export function AdSalesEfficiencyAnalysis({
                   value: "ROAS",
                   angle: -90,
                   position: "insideLeft",
+                  fontSize: axisFontSize,
+                  fill: "#8b5cf6",
                 }}
                 stroke="#8b5cf6"
+                width={40}
               />
               <YAxis
                 yAxisId="right"
@@ -302,6 +321,8 @@ export function AdSalesEfficiencyAnalysis({
                   angle: 90,
                   position: "bottom",
                   dy: 40,
+                  fontSize: axisFontSize,
+                  fill: "#82ca9d",
                 }}
                 tickFormatter={(v) => formatM(v, 0)}
                 stroke="#82ca9d"
@@ -316,10 +337,12 @@ export function AdSalesEfficiencyAnalysis({
                   angle: 90,
                   position: "bottom",
                   dy: 40,
+                  fontSize: axisFontSize,
+                  fill: "#8884d8",
                 }}
                 tickFormatter={(v) => formatM(v, 0)}
                 stroke="#8884d8"
-                width={60}
+                width={50}
               />
               <Tooltip
                 content={({ active, payload, label }) => {
@@ -328,9 +351,9 @@ export function AdSalesEfficiencyAnalysis({
                     return (
                       <div className="bg-white p-3 border rounded shadow-lg">
                         <p className="font-semibold mb-2">{label}</p>
-                        <p className="text-sm">ROAS: {data.roas.toFixed(2)}</p>
-                        <p className="text-sm">광고비: {formatK(data.adSpend)}</p>
-                        <p className="text-sm">매출: {formatK(data.sales)}</p>
+                        <p className="text-[11.5px]">ROAS: {data.roas.toFixed(2)}</p>
+                        <p className="text-[11.5px]">광고비: {formatK(data.adSpend)}</p>
+                        <p className="text-[11.5px]">매출: {formatK(data.sales)}</p>
                       </div>
                     );
                   }
@@ -351,6 +374,7 @@ export function AdSalesEfficiencyAnalysis({
                 fill="#82ca9d"
                 name="매출"
                 radius={[4, 4, 0, 0]}
+                maxBarSize={22}
               />
               <Bar
                 yAxisId="right2"
@@ -358,6 +382,7 @@ export function AdSalesEfficiencyAnalysis({
                 fill="#8884d8"
                 name="광고비"
                 radius={[4, 4, 0, 0]}
+                maxBarSize={22}
               />
               <Line
                 yAxisId="left"
@@ -373,9 +398,7 @@ export function AdSalesEfficiencyAnalysis({
         </CardContent>
       </Card>
 
-      {/* 광고비 구간별 효율 | 구간별 분석 | 증감률 비교 (한 행 3열) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* 1. 광고비 구간별 효율 분석 */}
+      {/* 광고비 구간별 효율 분석 — 2행 우측 (월별 ROAS 옆) */}
       {optimalRanges.length > 0 && (
         <Card style={{ borderColor: navyColor, borderWidth: "1px" }}>
           <div
@@ -385,7 +408,7 @@ export function AdSalesEfficiencyAnalysis({
           <CardHeader className="pl-5">
             <div className="flex items-center gap-2">
               <Target className="w-5 h-5" style={{ color: navyColor }} />
-              <CardTitle className="text-xs sm:text-sm lg:text-lg" style={{ color: navyColor }}>
+              <CardTitle className="text-[13px] font-bold" style={{ color: navyColor }}>
                 광고비 구간별 효율 분석
               </CardTitle>
             </div>
@@ -426,31 +449,35 @@ export function AdSalesEfficiencyAnalysis({
                   dataKey="avgROAS"
                   fill="#10b981"
                   name="평균 ROAS"
-                  radius={[8, 8, 0, 0]}
+                  radius={[6, 6, 0, 0]}
+                  maxBarSize={32}
                 />
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-4 text-sm bg-green-50 p-4 rounded-lg border border-green-200">
+            <div className="mt-3 text-[10.5px] bg-green-50 p-3 rounded-lg border border-green-200">
               <p className="font-semibold text-green-800 mb-1">해석</p>
-              <p className="text-green-800">{optimalRange.recommendation}</p>
-              <p className="text-green-700 mt-2 text-xs">
+              <p className="text-green-800 leading-snug">{optimalRange.recommendation}</p>
+              <p className="text-green-700 mt-1.5 text-[10px] leading-snug">
                 각 구간은 해당 기간 월별 광고비를 기준으로 나눈 뒤, 구간별 평균 ROAS를 비교한 결과입니다. ROAS가 높은 구간에 투자 비중을 두는 것이 효율적입니다.
               </p>
             </div>
           </CardContent>
         </Card>
       )}
+      </div>
 
+      {/* 3행: 광고비 구간별 분석 | 광고비-매출 증감률 비교 (YoY) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       {/* 2. 광고비 구간별 분석 (하/중/상 25%) */}
       {quartileSegments.length > 0 && (
         <Card style={{ borderColor: navyColor, borderWidth: "1px" }}>
           <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: navyColor }} />
           <CardHeader className="pl-5">
-            <CardTitle className="text-xs sm:text-sm lg:text-lg" style={{ color: navyColor }}>광고비 구간별 분석</CardTitle>
+            <CardTitle className="text-[13px] font-bold" style={{ color: navyColor }}>광고비 구간별 분석</CardTitle>
           </CardHeader>
           <CardContent className="pl-5">
             <div className="overflow-x-auto mb-4">
-              <table className="w-full text-sm">
+              <table className="w-full text-[11.5px]">
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-2">구간</th>
@@ -488,18 +515,18 @@ export function AdSalesEfficiencyAnalysis({
                 <XAxis dataKey="name" tick={{ fontSize: axisFontSize }} />
                 <YAxis tickFormatter={(v) => formatM(v, 0)} tick={{ fontSize: axisFontSize }} />
                 <Tooltip formatter={(value: number) => formatM(value)} />
-                <Bar dataKey="avgSales" name="평균 매출" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="avgSales" name="평균 매출" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={32} />
               </BarChart>
             </ResponsiveContainer>
-            <div className="mt-4 space-y-3">
-              <div className="text-sm bg-amber-50 p-4 rounded-lg border border-amber-200">
-                <p className="font-semibold text-amber-900 mb-1">읽는 법</p>
-                <p className="text-amber-800">
+            <div className="mt-3 space-y-2">
+              <div className="text-[10px] bg-amber-50 p-3 rounded-lg border border-amber-200">
+                <p className="font-semibold text-amber-900 mb-1 text-[10.5px]">읽는 법</p>
+                <p className="text-amber-800 leading-snug">
                   월별 광고비를 하위 25%, 중간 50%, 상위 25%로 나눈 뒤, 각 구간의 평균 광고비·평균 매출·매출 YoY를 비교한 결과입니다.
                   하위 구간에서도 매출이 높다면 광고 외 요인이 크고, 상위 구간에서 매출이 뚜렷히 높다면 광고 투자 효과를 의심해 볼 수 있습니다.
                 </p>
               </div>
-              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded">
+              <div className="text-[10px] text-gray-600 bg-gray-50 p-2.5 rounded leading-snug">
                 {quartileInterpretation}
               </div>
             </div>
@@ -515,10 +542,10 @@ export function AdSalesEfficiencyAnalysis({
             style={{ backgroundColor: navyColor }}
           ></div>
           <CardHeader className="pl-5">
-            <CardTitle className="text-xs sm:text-sm lg:text-lg" style={{ color: navyColor }}>
+            <CardTitle className="text-[13px] font-bold" style={{ color: navyColor }}>
               광고비-매출 증감률 비교 (YoY)
               {elasticity !== 0 && (
-                <span className="text-sm font-normal text-gray-600 ml-4">
+                <span className="text-[11px] font-normal text-gray-600 ml-4">
                   탄력도: {elasticity.toFixed(2)}
                 </span>
               )}
@@ -548,7 +575,7 @@ export function AdSalesEfficiencyAnalysis({
                           {payload.map((entry, index) => (
                             <p
                               key={index}
-                              className="text-sm"
+                              className="text-[11.5px]"
                               style={{ color: entry.color }}
                             >
                               {entry.name}: {formatPercent(entry.value as number, 1)}
@@ -580,7 +607,7 @@ export function AdSalesEfficiencyAnalysis({
                 />
               </LineChart>
             </ResponsiveContainer>
-            <div className="mt-4 text-sm bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <div className="mt-4 text-[11.5px] bg-blue-50 p-4 rounded-lg border border-blue-200">
               <p className="font-semibold text-blue-900 mb-1">해석</p>
               <p className="text-blue-800">
                 탄력도 {elasticity.toFixed(2)}는{" "}
@@ -601,8 +628,6 @@ export function AdSalesEfficiencyAnalysis({
         </Card>
       )}
       </div>
-      </>
-      )}
 
       {/* 포화점 경고 */}
       {saturation.hasSaturation && (
@@ -614,7 +639,7 @@ export function AdSalesEfficiencyAnalysis({
                 <div className="font-bold text-orange-900 mb-1">
                   광고 포화 신호 감지
                 </div>
-                <p className="text-sm text-orange-800">{saturation.message}</p>
+                <p className="text-[11.5px] text-orange-800">{saturation.message}</p>
               </div>
             </div>
           </CardContent>
