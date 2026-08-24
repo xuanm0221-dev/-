@@ -246,7 +246,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       // 승인 오버라이드 항목은 강제로 over-clear (좌측 증액검토에 반드시 표시)
       const hasApproval = !!APPROVED_ADDITIONS[`${info.bu}|${info.lv1}`];
       const verdict: Verdict = hasApproval ? "over-clear" : raw.verdict;
-      const conclusion = hasApproval ? "추가 사용 승인 완료 (실 승인액 반영)" : raw.conclusion;
+      const conclusion = hasApproval ? t("추가 사용 승인 완료 (실 승인액 반영)", lang) : raw.conclusion;
       items.push({
         key: k, bu: info.bu, lv1: info.lv1, lv2: info.lv2, lv3: info.lv3, subLabel,
         actual, planYtd, planAnnual,
@@ -369,14 +369,34 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
         </div>
         <div className="mt-3 space-y-1.5">
           <p className="text-[11px] text-gray-600 bg-amber-50 border-l-4 border-amber-400 px-3 py-2 rounded leading-snug">
-            ※ <b>2단계 판정</b> : ① <b>진척률</b>이 예상 페이스({expectedPace.toFixed(0)}%, {month}/12)와 다른가? ② 다르면 <b>실적+남은계획</b>이 연간계획을 벗어나는가?
-            <br />
-            <b>진척률 &gt; {expectedPace.toFixed(0)}% + 예상 소진 ≥ 102% → 증액 필요</b>, <b>진척률 &lt; {expectedPace.toFixed(0)}% + 예상 소진 ≤ 95% → 감축 가능</b>, 그 사이(95~102%)는 오차 범위로 정상.
-            <br />
-            <b>광고비·인테리어개발</b>은 브랜드까지, <b>인건비</b>는 브랜드×lv2(기본급/성과급/성과급충당금)까지, <b>차량렌트비·임차료</b>는 대분류만.
+            {lang === "zh" ? (
+              <>
+                ※ <b>两阶段判定</b> : ① <b>进度率</b>是否与预期进度({expectedPace.toFixed(0)}%, {month}/12)不同? ② 若不同, <b>实绩+剩余预算</b>是否超出年度预算?
+                <br />
+                <b>进度率 &gt; {expectedPace.toFixed(0)}% + 预计消耗 ≥ 102% → 需要增加</b>, <b>进度率 &lt; {expectedPace.toFixed(0)}% + 预计消耗 ≤ 95% → 可减少</b>, 中间(95~102%)按误差范围视为正常.
+                <br />
+                <b>广告费·内饰开发</b>汇总至品牌, <b>人工费</b>汇总至品牌×lv2(基本工资/绩效奖金/绩效奖金准备金), <b>车辆租赁费·租金</b>仅按大分类判定.
+              </>
+            ) : (
+              <>
+                ※ <b>2단계 판정</b> : ① <b>진척률</b>이 예상 페이스({expectedPace.toFixed(0)}%, {month}/12)와 다른가? ② 다르면 <b>실적+남은계획</b>이 연간계획을 벗어나는가?
+                <br />
+                <b>진척률 &gt; {expectedPace.toFixed(0)}% + 예상 소진 ≥ 102% → 증액 필요</b>, <b>진척률 &lt; {expectedPace.toFixed(0)}% + 예상 소진 ≤ 95% → 감축 가능</b>, 그 사이(95~102%)는 오차 범위로 정상.
+                <br />
+                <b>광고비·인테리어개발</b>은 브랜드까지, <b>인건비</b>는 브랜드×lv2(기본급/성과급/성과급충당금)까지, <b>차량렌트비·임차료</b>는 대분류만.
+              </>
+            )}
           </p>
           <p className="text-[11px] text-slate-600 bg-slate-50 border-l-4 border-slate-400 px-3 py-2 rounded leading-snug">
-            <b>제외 항목 — 수주회</b>: 상반기 발생 완료 · 감축 불가하며 예산 증액 보고도 완료됨. 본 분석에서 제외합니다.
+            {lang === "zh" ? (
+              <>
+                <b>排除项目 — 订货会</b>: 上半年已发生完毕 · 无法减少且已完成预算增加报告. 本次分析中排除.
+              </>
+            ) : (
+              <>
+                <b>제외 항목 — 수주회</b>: 상반기 발생 완료 · 감축 불가하며 예산 증액 보고도 완료됨. 본 분석에서 제외합니다.
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -518,8 +538,8 @@ function SyncedBudgetSection({
                 className="w-full grid grid-cols-2 bg-slate-100/70 hover:bg-slate-200/60 transition-colors text-left"
                 aria-expanded={isOpen}
               >
-                <Lv1HeaderCell lv1={lv1} group={over} tone="rose" border="right" adjustSum={overSum} isOpen={isOpen} confirmed={overConfirmed} />
-                <Lv1HeaderCell lv1={lv1} group={under} tone="blue" adjustSum={underSum} isOpen={isOpen} confirmed={false} />
+                <Lv1HeaderCell lv1={lv1} group={over} tone="rose" border="right" adjustSum={overSum} isOpen={isOpen} confirmed={overConfirmed} lang={lang} />
+                <Lv1HeaderCell lv1={lv1} group={under} tone="blue" adjustSum={underSum} isOpen={isOpen} confirmed={false} lang={lang} />
               </button>
               {/* 하위 소분류 (좌·우 병렬) — 펼침 시에만 노출 */}
               {isOpen && (
@@ -554,7 +574,7 @@ function SubHeaderRow({ lang, border, tone }: { lang: Lang; border?: "right"; to
   );
 }
 
-function Lv1HeaderCell({ lv1, group, tone, border, adjustSum, isOpen, confirmed }: {
+function Lv1HeaderCell({ lv1, group, tone, border, adjustSum, isOpen, confirmed, lang }: {
   lv1: string;
   group?: Lv1Group;
   tone: "rose" | "blue";
@@ -562,6 +582,7 @@ function Lv1HeaderCell({ lv1, group, tone, border, adjustSum, isOpen, confirmed 
   adjustSum?: number;
   isOpen?: boolean;
   confirmed?: boolean;
+  lang: Lang;
 }) {
   const ratioCls = tone === "rose" ? "text-rose-600" : "text-blue-600";
   return (
@@ -583,20 +604,20 @@ function Lv1HeaderCell({ lv1, group, tone, border, adjustSum, isOpen, confirmed 
             {adjustSum != null && adjustSum > 0 ? `${tone === "rose" ? "+" : "−"}${formatK(adjustSum)}` : "-"}
           </div>
           <div className={`text-[10px] ${confirmed ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
-            {confirmed ? "✔ 확정" : `${formatPercent(group.projectedPct, 0)} 예상`}
+            {confirmed ? `✔ ${t("확정", lang)}` : `${formatPercent(group.projectedPct, 0)} ${t("예상", lang)}`}
           </div>
         </>
       ) : (
-        <div className="col-span-5 text-[10.5px] text-slate-400 italic text-right">— {tone === "rose" ? "초과 없음" : "감축 대상 없음"}</div>
+        <div className="col-span-5 text-[10.5px] text-slate-400 italic text-right">— {tone === "rose" ? t("초과 없음", lang) : t("감축 대상 없음", lang)}</div>
       )}
     </div>
   );
 }
 
-const VERDICT_STYLE: Record<Verdict, { bg: string; text: string; label: string }> = {
-  "over-clear": { bg: "bg-rose-100", text: "text-rose-800", label: "증액 검토" },
-  "under-cut":  { bg: "bg-blue-100", text: "text-blue-800", label: "감축 가능" },
-  normal:       { bg: "bg-emerald-50", text: "text-emerald-700", label: "정상" },
+const VERDICT_STYLE: Record<Verdict, { bg: string; text: string; labelKey: string }> = {
+  "over-clear": { bg: "bg-rose-100", text: "text-rose-800", labelKey: "증액 검토" },
+  "under-cut":  { bg: "bg-blue-100", text: "text-blue-800", labelKey: "감축 가능" },
+  normal:       { bg: "bg-emerald-50", text: "text-emerald-700", labelKey: "정상" },
 };
 
 function ItemColumn({ items, tone, border, lang }: {
@@ -645,18 +666,18 @@ function ItemColumn({ items, tone, border, lang }: {
               {approval ? (
                 <div className="space-y-0.5">
                   <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-emerald-100 text-emerald-800" title={approval.note}>
-                    ✔ 추가 사용 승인
+                    {t("✔ 추가 사용 승인", lang)}
                   </span>
                   {/* 승인 내역 미니 표 */}
                   <table className="w-full text-[9.5px] border border-emerald-200 border-collapse mt-0.5">
                     <thead className="bg-emerald-100/70">
                       <tr>
-                        <th className="px-1 py-0.5 border border-emerald-200 text-center text-emerald-900 font-semibold leading-tight">항목</th>
+                        <th className="px-1 py-0.5 border border-emerald-200 text-center text-emerald-900 font-semibold leading-tight">{t("항목", lang)}</th>
                         <th className="px-1 py-0.5 border border-emerald-200 text-center text-emerald-900 font-semibold leading-tight">
-                          <div>MKT 추가승인</div>
+                          <div>{t("MKT 추가승인", lang)}</div>
                           <div className="text-[8.5px] font-normal text-emerald-700">(26.08~27.07)</div>
                         </th>
-                        <th className="px-1 py-0.5 border border-emerald-200 text-center text-emerald-900 font-semibold leading-tight">26년 배분</th>
+                        <th className="px-1 py-0.5 border border-emerald-200 text-center text-emerald-900 font-semibold leading-tight">{t("26년 배분", lang)}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -668,7 +689,7 @@ function ItemColumn({ items, tone, border, lang }: {
                         </tr>
                       ))}
                       <tr className="bg-emerald-50 font-bold">
-                        <td className="px-1 py-0 border border-emerald-100 text-emerald-900">합계</td>
+                        <td className="px-1 py-0 border border-emerald-100 text-emerald-900">{t("합계", lang)}</td>
                         <td className="px-1 py-0 border border-emerald-100 text-right text-emerald-800 tabular-nums">{approval.totalMkt.toLocaleString()}K</td>
                         <td className="px-1 py-0 border border-emerald-100 text-right text-emerald-900 tabular-nums">{approval.totalAlloc26.toLocaleString()}K</td>
                       </tr>
@@ -677,7 +698,7 @@ function ItemColumn({ items, tone, border, lang }: {
                 </div>
               ) : (
                 <span className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-semibold ${vs.bg} ${vs.text}`} title={it.conclusion}>
-                  {vs.label}
+                  {t(vs.labelKey, lang)}
                 </span>
               )}
             </div>
@@ -774,7 +795,7 @@ function BudgetSection({
                         <td className="px-2 py-1 text-right tabular-nums">{formatPercent(item.projectedPct, 0)}</td>
                         <td className="px-2 py-1">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-semibold ${vs.bg} ${vs.text}`} title={item.conclusion}>
-                            {vs.label}
+                            {t(vs.labelKey, lang)}
                           </span>
                         </td>
                       </tr>
