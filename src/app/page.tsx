@@ -236,7 +236,7 @@ export default function HomePage() {
                 {(() => {
                   const tabs = [
                     { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" /> },
-                    { key: "detail",       label: t("비용 계정 상세 분석", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
+                    { key: "detail",       label: t("월별 비용 추이", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
                     { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
                     { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
                     { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },

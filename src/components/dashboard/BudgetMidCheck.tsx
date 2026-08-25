@@ -725,7 +725,6 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${overTone ? "bg-rose-600 text-white" : netExclApproved < 0 ? "bg-blue-600 text-white" : "bg-slate-600 text-white"}`}>
                   Executive Overview
                 </span>
-                <span className="text-[11px] text-slate-500">{t("CEO 보고용 · 항목별 실행 액션", lang)}</span>
               </div>
 
               {/* 헤드라인 (Action-oriented) */}
