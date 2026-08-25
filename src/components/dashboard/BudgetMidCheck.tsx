@@ -526,7 +526,7 @@ function SummaryBox({
     slate: emphasize ? "border-slate-400 bg-slate-50 text-slate-900" : "border-slate-200 bg-slate-50/60 text-slate-800",
   }[tone];
   return (
-    <div className={`${emphasize ? "border-2" : "border"} rounded-md px-3 py-2 ${cls}`}>
+    <div className={`${emphasize ? "border-4" : "border"} rounded-md px-3 py-2 ${cls}`}>
       <div className="text-[10px] font-semibold uppercase tracking-wider opacity-70">{label}</div>
       <div className="text-[16px] font-bold leading-tight mt-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>{value}</div>
       <div className="text-[10px] mt-0.5 opacity-80">{sub}</div>
