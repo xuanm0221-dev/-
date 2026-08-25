@@ -427,9 +427,11 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       if (APPROVED_BY_ACTUAL_LV1.has(i.lv1)) approvedByLv1.set(i.lv1, (approvedByLv1.get(i.lv1) ?? 0) + Math.max(0, i.actual - i.planAnnual));
     }
 
+    // 전체 실적 (비계획 지출 포함) — KPI/합계 표시용, 좌측 BizUnitCard와 일치
+    const actualAll = Array.from(actualMap.values()).reduce((s, v) => s + v, 0);
     const totals = {
       plan: items.reduce((s, i) => s + i.planAnnual, 0),
-      actual: items.reduce((s, i) => s + i.actual, 0),
+      actual: actualAll,
       prevAnnual: items.reduce((s, i) => s + i.prevAnnualActual, 0),
       // 증액 승인완료 = 사전 지정 승인 + 수주회 등 실사용 승인
       approvedAmount: approvalSum + approvalByActualSum,
