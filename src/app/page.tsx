@@ -86,7 +86,7 @@ export default function HomePage() {
   // 진입 시 항상 최신 실적 연도 + 가장 최근 가용 월
   const initialYearOption = getLatestYearOption();
   const initialMonth = getLatestMonth(initialYearOption);
-  const initialMode: Mode = "monthly";
+  const initialMode: Mode = "ytd";
 
   const [yearOption, setYearOption] = useState<YearOption>(initialYearOption);
   const [month, setMonth] = useState<number>(initialMonth);
@@ -298,7 +298,7 @@ export default function HomePage() {
             // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭 (YTD 7컬럼 vs 당월/분기 5컬럼).
             // flex-none으로 카드가 자연 폭을 지키고, 남는 공간은 우측 panel이 흡수.
             const cardWidthClass = mode === "ytd"
-              ? "xl:flex-none xl:w-[570px]"
+              ? "xl:flex-none xl:w-[720px]"
               : "xl:flex-none xl:w-[470px]";
             return (
           <div className="flex flex-col xl:flex-row gap-5 items-start mb-8">

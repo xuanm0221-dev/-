@@ -150,6 +150,11 @@ export function BrandCard({
     ? getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", "plan")
     : [];
   const annualPlanMap = new Map(annualPlanData.map((item) => [item.cost_lv1, item.amount]));
+  // YTD 시점 계획 — 해당 월까지 계획 누적
+  const planYtdData = yearType === 'actual'
+    ? getMonthlyAggregatedByCategory(bizUnit, year, month, "ytd", "plan")
+    : [];
+  const planYtdMap = new Map(planYtdData.map((item) => [item.cost_lv1, item.amount]));
 
   const prevTotalCost = prevCategoryData.reduce(
     (sum, item) => sum + item.amount,
@@ -294,6 +299,7 @@ export function BrandCard({
           const amountDiff = currentAmount - prevAmount;
           const yoy = calculateYOY(currentAmount, prevAmount);
           const annualPlan = annualPlanMap.get(categoryName) ?? 0;
+          const planYtd = planYtdMap.get(categoryName) ?? 0;
           const usagePct = annualPlan > 0 ? (currentAmount / annualPlan) * 100 : null;
           return {
             label: categoryName,
@@ -303,6 +309,7 @@ export function BrandCard({
             yoy,
             prevAmount,
             annualPlan: annualPlan > 0 ? annualPlan : undefined,
+            planYtd: planYtd > 0 ? planYtd : undefined,
             usagePct,
           };
         })
@@ -317,6 +324,7 @@ export function BrandCard({
         const amountDiff = currentAmount - prevAmount;
         const yoy = calculateYOY(currentAmount, prevAmount);
         const annualPlan = annualPlanMap.get(categoryName) ?? 0;
+        const planYtd = planYtdMap.get(categoryName) ?? 0;
         const usagePct = annualPlan > 0 ? (currentAmount / annualPlan) * 100 : null;
         return {
           label: getCategoryDisplayName(categoryName),
@@ -326,6 +334,7 @@ export function BrandCard({
           yoy,
           prevAmount,
           annualPlan: annualPlan > 0 ? annualPlan : undefined,
+          planYtd: planYtd > 0 ? planYtd : undefined,
           usagePct,
         };
       });
