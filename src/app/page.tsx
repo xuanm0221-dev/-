@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Baby, Mountain, Building2, Building, BarChart3, Calendar, ChevronDown, Download, FileText, Bot, Microscope, BarChart2, Table as TableIcon, Scale, type LucideIcon } from "lucide-react";
+import { Baby, Mountain, Building2, Building, ChevronDown, Download, FileText, Bot, Microscope, BarChart2, Table as TableIcon, Scale, type LucideIcon } from "lucide-react";
 import { BudgetMidCheck } from "@/components/dashboard/BudgetMidCheck";
 import React from "react";
 
@@ -134,12 +134,22 @@ export default function HomePage() {
       <div className="w-full px-2 sm:px-2 md:px-3 lg:px-3 xl:px-4 py-3 md:py-4">
         {/* 헤더 */}
         <div className="mb-3">
-          {/* 제목 영역 (compact) */}
-          <div className="mb-4 flex items-center justify-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <BarChart3 className="w-6 h-6 text-white" />
+          {/* 제목 영역 — 심플 스타일 (좌: 제목+언어토글, 우: 전처리 절차 가로) */}
+          <div className="mb-3 pb-2 border-b border-slate-300 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <h1 className="text-[16px] sm:text-lg lg:text-xl font-bold text-slate-900">{t("F&F China 영업비 대시보드", lang)}</h1>
+              <LanguageToggle />
             </div>
-            <h1 className="text-[15px] sm:text-lg lg:text-2xl font-bold text-gray-900">{t("F&F CHINA 비용 대시보드", lang)}</h1>
+            <div className="flex items-center gap-1.5 text-[10px] text-slate-400 flex-wrap justify-end">
+              <span className="text-slate-500">{t("매월 데이터 갱신(실행순서)", lang)}:</span>
+              <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px]">
+                python scripts/preprocess_sales.py
+              </code>
+              <span className="text-slate-400">→</span>
+              <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px]">
+                python scripts/preprocess_expense.py
+              </code>
+            </div>
           </div>
           
           {/* 날짜 선택 및 모드 전환 영역 */}
@@ -181,7 +191,6 @@ export default function HomePage() {
               </div>
               {/* 날짜 셀렉터 (흰 배경, 모드탭과 동일 형태) */}
               <div className="inline-flex items-center rounded-xl bg-white p-1 ring-1 ring-slate-200/80 shadow-sm shadow-slate-200/40 flex-shrink-0">
-                <Calendar className="w-3.5 h-3.5 text-slate-500 flex-shrink-0 ml-1.5 mr-1" />
                 <div className="relative flex items-center px-2 py-1 mr-0.5">
                   <select
                     value={`${yearOption.year}-${yearOption.type}`}
@@ -222,32 +231,35 @@ export default function HomePage() {
                   }`} />
                 </div>
               </div>
-              {/* 우측 탭 스위처 (예산/상세/광고/AI/심층) — 날짜 우측 */}
-              <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-slate-100 p-1 border border-slate-200 flex-shrink-0">
-                {([
-                  { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" /> },
-                  { key: "detail",       label: t("비용 계정 상세 분석", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
-                  { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
-                  { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
-                  { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
-                ] as { key: RightTab; label: string; icon: React.ReactNode }[]).map((tab) => {
-                  const active = rightTab === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => setRightTab(tab.key)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[12px] font-semibold rounded-md transition-colors ${
-                        active
-                          ? "bg-slate-800 text-white"
-                          : "text-slate-600 hover:bg-slate-200/60"
-                      }`}
-                    >
-                      {tab.icon}
-                      {tab.label}
-                    </button>
-                  );
-                })}
+              {/* 우측 탭 스위처 (예산/상세/광고/AI/심층) — 핵심결론&액션 탭과 동일 디자인 */}
+              <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden shadow-sm flex-shrink-0 flex-wrap">
+                {(() => {
+                  const tabs = [
+                    { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" /> },
+                    { key: "detail",       label: t("비용 계정 상세 분석", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
+                    { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
+                    { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
+                    { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
+                  ] as { key: RightTab; label: string; icon: React.ReactNode }[];
+                  return tabs.map((tab, idx) => {
+                    const active = rightTab === tab.key;
+                    return (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setRightTab(tab.key)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold transition-colors ${idx > 0 ? "border-l border-slate-300" : ""} ${
+                          active
+                            ? "bg-slate-900 text-white"
+                            : "bg-white text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {tab.icon}
+                        {tab.label}
+                      </button>
+                    );
+                  });
+                })()}
               </div>
               {/* AI 보고서/심층분석 버튼 제거 — 우측 탭에서 직접 열람 */}
               {isPlanYear && (
@@ -274,20 +286,6 @@ export default function HomePage() {
                   </Button>
                 </>
               )}
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0 mt-2 sm:mt-0">
-              {/* 매월 데이터 갱신 안내 (세로형, 언어 전환 좌측) */}
-              <div className="text-[10px] text-slate-400 leading-tight flex flex-col items-end">
-                <span>{t("매월 데이터 갱신(실행순서)", lang)}:</span>
-                <code className="mt-0.5 px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
-                  python scripts/preprocess_sales.py
-                </code>
-                <span className="text-slate-400 text-[10px] leading-none">↓</span>
-                <code className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px]">
-                  python scripts/preprocess_expense.py
-                </code>
-              </div>
-              <LanguageToggle />
             </div>
           </div>
         </div>

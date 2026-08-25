@@ -2490,7 +2490,7 @@
       "yyyymm": "202602",
       "cost_lv1": "인건비",
       "year_type": "plan",
-      "amount": 2002023.0,
+      "amount": 1810977.0,
       "headcount": 31.0,
       "sales": 11370000.0,
       "biz_unit_cn": "DISCOVERY",
@@ -3467,7 +3467,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "折旧费"
     },
@@ -3493,7 +3493,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "广告费"
     },
@@ -3519,7 +3519,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "福利费"
     },
@@ -3545,7 +3545,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "订货会"
     },
@@ -3571,7 +3571,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "工资"
     },
@@ -3597,7 +3597,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "commission"
     },
@@ -3623,7 +3623,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "出差费"
     },
@@ -6858,7 +6858,7 @@
       "yyyymm": "202602",
       "cost_lv1": "인건비",
       "year_type": "plan",
-      "amount": 1077791.0,
+      "amount": 1068234.0,
       "headcount": 23.0,
       "sales": 37594755.0,
       "biz_unit_cn": "KIDS",
@@ -7835,7 +7835,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "折旧费"
     },
@@ -7861,7 +7861,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "广告费"
     },
@@ -7887,7 +7887,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "福利费"
     },
@@ -7913,7 +7913,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "订货会"
     },
@@ -7939,7 +7939,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "工资"
     },
@@ -7965,7 +7965,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "commission"
     },
@@ -7991,7 +7991,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "出差费"
     },
@@ -11226,7 +11226,7 @@
       "yyyymm": "202602",
       "cost_lv1": "인건비",
       "year_type": "plan",
-      "amount": 7287422.0,
+      "amount": 7147841.0,
       "headcount": 129.0,
       "sales": 827285916.0,
       "biz_unit_cn": "MLB",
@@ -12203,7 +12203,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "折旧费"
     },
@@ -12229,7 +12229,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "广告费"
     },
@@ -12255,7 +12255,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "福利费"
     },
@@ -12281,7 +12281,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "订货会"
     },
@@ -12307,7 +12307,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "工资"
     },
@@ -12333,7 +12333,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "commission"
     },
@@ -12359,7 +12359,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "出差费"
     },
@@ -15880,7 +15880,7 @@
       "yyyymm": "202602",
       "cost_lv1": "복리후생비",
       "year_type": "plan",
-      "amount": 3092166.0,
+      "amount": 2988780.0,
       "headcount": 72.0,
       "sales": 827285916.0,
       "biz_unit_cn": "MLB",
@@ -15932,7 +15932,7 @@
       "yyyymm": "202602",
       "cost_lv1": "인건비",
       "year_type": "plan",
-      "amount": 4307877.0,
+      "amount": 4175013.0,
       "headcount": 72.0,
       "sales": 827285916.0,
       "biz_unit_cn": "MLB",
@@ -17117,7 +17117,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "福利费"
     },
@@ -17169,7 +17169,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "工资"
     },
@@ -18401,7 +18401,7 @@
       "month": 2,
       "yyyymm": "202602",
       "year_type": "plan",
-      "amount": 5284941.0,
+      "amount": 5093895.0,
       "headcount": 31.0,
       "sales": 11370000.0,
       "biz_unit_cn": "DISCOVERY"
@@ -18524,7 +18524,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 938986.12,
+      "sales": 1927800.22,
       "biz_unit_cn": "DISCOVERY"
     },
     {
@@ -18929,7 +18929,7 @@
       "month": 2,
       "yyyymm": "202602",
       "year_type": "plan",
-      "amount": 2079208.0,
+      "amount": 2069651.0,
       "headcount": 23.0,
       "sales": 37594755.0,
       "biz_unit_cn": "KIDS"
@@ -19052,7 +19052,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 7245913.392,
+      "sales": 17994781.212,
       "biz_unit_cn": "KIDS"
     },
     {
@@ -19457,7 +19457,7 @@
       "month": 2,
       "yyyymm": "202602",
       "year_type": "plan",
-      "amount": 24403581.0,
+      "amount": 24264000.0,
       "headcount": 129.0,
       "sales": 827285916.0,
       "biz_unit_cn": "MLB"
@@ -19580,7 +19580,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB"
     },
     {
@@ -19985,7 +19985,7 @@
       "month": 2,
       "yyyymm": "202602",
       "year_type": "plan",
-      "amount": 11937873.0,
+      "amount": 11701623.0,
       "headcount": 72.0,
       "sales": 827285916.0,
       "biz_unit_cn": "MLB"
@@ -20108,7 +20108,7 @@
       "year_type": "actual",
       "amount": 0.0,
       "headcount": 0.0,
-      "sales": 182330673.44,
+      "sales": 436632577.539,
       "biz_unit_cn": "MLB"
     },
     {
@@ -34877,7 +34877,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "DISCOVERY",
       "year_type": "plan",
-      "amount": 749834.0,
+      "amount": 558788.0,
       "headcount": 31.0,
       "biz_unit_cn": "DISCOVERY",
       "cost_lv1_cn": "工资",
@@ -62477,7 +62477,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "KIDS",
       "year_type": "plan",
-      "amount": 446791.0,
+      "amount": 437234.0,
       "headcount": 23.0,
       "biz_unit_cn": "KIDS",
       "cost_lv1_cn": "工资",
@@ -96157,7 +96157,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "MLB",
       "year_type": "plan",
-      "amount": 2970549.0,
+      "amount": 2830968.0,
       "headcount": 129.0,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "工资",
@@ -167965,7 +167965,7 @@
       "cost_lv2": "송년회",
       "cost_lv3": "송년회-매장",
       "year_type": "plan",
-      "amount": 400000.0,
+      "amount": 300000.0,
       "headcount": 0.0,
       "biz_unit_cn": "共同",
       "cost_lv1_cn": "福利费",
@@ -167997,7 +167997,7 @@
       "cost_lv2": "송년회",
       "cost_lv3": "송년회-사무실",
       "year_type": "plan",
-      "amount": 1300000.0,
+      "amount": 1296614.0,
       "headcount": 0.0,
       "biz_unit_cn": "共同",
       "cost_lv1_cn": "福利费",
@@ -168669,7 +168669,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "경영지원",
       "year_type": "plan",
-      "amount": 1737729.0,
+      "amount": 1604865.0,
       "headcount": 72.0,
       "biz_unit_cn": "MLB",
       "cost_lv1_cn": "工资",
@@ -180973,7 +180973,7 @@
       "cost_lv2": "보험비",
       "cost_lv3": "임원배상책임보험",
       "year_type": "actual",
-      "amount": 583446.06,
+      "amount": 9365.0,
       "headcount": 0.0,
       "biz_unit_cn": "共同",
       "cost_lv1_cn": "commission",
@@ -181005,7 +181005,7 @@
       "cost_lv2": "보험비",
       "cost_lv3": "임직원상업보험",
       "year_type": "actual",
-      "amount": 0.0,
+      "amount": 574081.06,
       "headcount": 0.0,
       "biz_unit_cn": "共同",
       "cost_lv1_cn": "commission",
@@ -209101,7 +209101,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "DISCOVERY",
       "year_type": "plan",
-      "annual_amount": 749834.0
+      "annual_amount": 558788.0
     },
     {
       "biz_unit": "DISCOVERY",
@@ -210100,7 +210100,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "KIDS",
       "year_type": "plan",
-      "annual_amount": 446791.0
+      "annual_amount": 437234.0
     },
     {
       "biz_unit": "KIDS",
@@ -211495,7 +211495,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "MLB",
       "year_type": "plan",
-      "annual_amount": 2970549.0
+      "annual_amount": 2830968.0
     },
     {
       "biz_unit": "MLB",
@@ -211504,7 +211504,7 @@
       "cost_lv2": "Red pack",
       "cost_lv3": "경영지원",
       "year_type": "plan",
-      "annual_amount": 1737729.0
+      "annual_amount": 1604865.0
     },
     {
       "biz_unit": "MLB",
@@ -214447,7 +214447,7 @@
       "cost_lv2": "송년회",
       "cost_lv3": "송년회-매장",
       "year_type": "plan",
-      "annual_amount": 400000.0
+      "annual_amount": 300000.0
     },
     {
       "biz_unit": "공통",
@@ -214456,7 +214456,7 @@
       "cost_lv2": "송년회",
       "cost_lv3": "송년회-사무실",
       "year_type": "plan",
-      "annual_amount": 1300000.0
+      "annual_amount": 1296614.0
     },
     {
       "biz_unit": "공통",
@@ -214627,7 +214627,7 @@
       "cost_lv2": "인지세",
       "cost_lv3": "",
       "year_type": "plan",
-      "annual_amount": 2484858.0
+      "annual_amount": 2477059.0
     },
     {
       "biz_unit": "공통",
@@ -214636,7 +214636,7 @@
       "cost_lv2": "증치세 부가 지방세",
       "cost_lv3": "",
       "year_type": "plan",
-      "annual_amount": 14900412.0
+      "annual_amount": 11820943.0
     },
     {
       "biz_unit": "공통",

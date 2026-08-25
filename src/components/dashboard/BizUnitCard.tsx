@@ -581,11 +581,8 @@ export function BizUnitCard({
                           {totalUsagePct != null ? formatPercent(totalUsagePct, 0) : "-"}
                         </div>
                         <div className="text-right border-l border-gray-200 pl-1.5">{formatK(totalRemaining)}</div>
-                        <div className="text-center flex flex-col items-center leading-tight">
-                          <span className={`inline-block px-1 rounded text-[10px] font-bold ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                            {isOver ? t("초과", lang) : t("이내", lang)}
-                          </span>
-                          <span className={`text-[9.5px] font-semibold tabular-nums ${isOver ? "text-rose-600" : "text-emerald-600"}`}>
+                        <div className="text-center">
+                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
                             {diff >= 0 ? "+" : ""}{formatK(diff)}
                           </span>
                         </div>
@@ -649,16 +646,11 @@ export function BizUnitCard({
                               <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
                                 {ap > 0 ? formatK(rem) : "-"}
                               </div>
-                              <div className="text-center flex flex-col items-center leading-tight">
+                              <div className="text-center">
                                 {ap > 0 ? (
-                                  <>
-                                    <span className={`inline-block px-1 rounded text-[10px] font-bold ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                      {isOver ? t("초과", lang) : t("이내", lang)}
-                                    </span>
-                                    <span className={`text-[9.5px] font-semibold tabular-nums ${isOver ? "text-rose-600" : "text-emerald-600"}`}>
-                                      {diff >= 0 ? "+" : ""}{formatK(diff)}
-                                    </span>
-                                  </>
+                                  <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                    {diff >= 0 ? "+" : ""}{formatK(diff)}
+                                  </span>
                                 ) : <span className="text-gray-400">-</span>}
                               </div>
                             </>
@@ -723,16 +715,11 @@ export function BizUnitCard({
                                         <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
                                           {ap > 0 ? formatK(rem) : "-"}
                                         </div>
-                                        <div className="text-center flex flex-col items-center leading-tight">
+                                        <div className="text-center">
                                           {ap > 0 ? (
-                                            <>
-                                              <span className={`inline-block px-1 rounded text-[9.5px] font-bold ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                                {isOver ? t("초과", lang) : t("이내", lang)}
-                                              </span>
-                                              <span className={`text-[9px] font-semibold tabular-nums ${isOver ? "text-rose-600" : "text-emerald-600"}`}>
-                                                {diff >= 0 ? "+" : ""}{formatK(diff)}
-                                              </span>
-                                            </>
+                                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                              {diff >= 0 ? "+" : ""}{formatK(diff)}
+                                            </span>
                                           ) : <span className="text-gray-400">-</span>}
                                         </div>
                                       </>
@@ -809,16 +796,11 @@ export function BizUnitCard({
                                               <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
                                                 {ap > 0 ? formatK(rem) : "-"}
                                               </div>
-                                              <div className="text-center flex flex-col items-center leading-tight">
+                                              <div className="text-center">
                                                 {ap > 0 ? (
-                                                  <>
-                                                    <span className={`inline-block px-1 rounded text-[9.5px] font-bold ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                                      {isOver ? t("초과", lang) : t("이내", lang)}
-                                                    </span>
-                                                    <span className={`text-[9px] font-semibold tabular-nums ${isOver ? "text-rose-600" : "text-emerald-600"}`}>
-                                                      {diff >= 0 ? "+" : ""}{formatK(diff)}
-                                                    </span>
-                                                  </>
+                                                  <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                                    {diff >= 0 ? "+" : ""}{formatK(diff)}
+                                                  </span>
                                                 ) : <span className="text-gray-400">-</span>}
                                               </div>
                                             </>
