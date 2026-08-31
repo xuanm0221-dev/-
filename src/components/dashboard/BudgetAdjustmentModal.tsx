@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Plus, Trash2, Save, Loader2, RotateCcw } from "lucide-react";
+import { X, Plus, Trash2, Save, Loader2, RotateCcw, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { formatK } from "@/lib/utils";
@@ -57,7 +57,7 @@ export function BudgetAdjustmentModal({
   lv2OptionsByLv1,
   lang,
 }: Props) {
-  const { adjustments, save } = useBudgetAdjustments();
+  const { adjustments, requiresPassword, save } = useBudgetAdjustments();
   const { addToast } = useToast();
 
   const [rows, setRows] = useState<BudgetAdjustment[]>([]);
@@ -65,7 +65,9 @@ export function BudgetAdjustmentModal({
   const [amountText, setAmountText] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [password, setPassword] = useState("");
-  const [needPassword, setNeedPassword] = useState(false);
+  // 비밀번호 입력 화면 (배포 환경에서 저장 클릭 시 노출)
+  const [pwOpen, setPwOpen] = useState(false);
+  const [pwError, setPwError] = useState("");
 
   // 열릴 때마다 서버 상태로 초기화 (해당 연도만 편집)
   useEffect(() => {
@@ -76,7 +78,8 @@ export function BudgetAdjustmentModal({
     setAmountText(
       Object.fromEntries(initial.map((a) => [a.id, a.amount ? String(a.amount / K) : ""]))
     );
-    setNeedPassword(false);
+    setPwOpen(false);
+    setPwError("");
     setPassword("");
   }, [open, adjustments, year, defaultBizUnit]);
 
@@ -109,7 +112,8 @@ export function BudgetAdjustmentModal({
     });
   };
 
-  const handleSave = async (pw?: string) => {
+  /** 저장 대상 행 정리 — 유효하지 않으면 null */
+  const collectRows = () => {
     const filled = rows
       .filter((r) => !isBlankAdjustment(r))
       .map((r) => ({
@@ -122,12 +126,14 @@ export function BudgetAdjustmentModal({
         updatedAt: new Date().toISOString(),
       }));
 
-    const invalid = filled.find((r) => !r.lv1);
-    if (invalid) {
+    if (filled.some((r) => !r.lv1)) {
       addToast({ type: "error", message: t("대분류를 입력해주세요.", lang) });
-      return;
+      return null;
     }
+    return filled;
+  };
 
+  const persist = async (filled: BudgetAdjustment[], pw?: string) => {
     setSaving(true);
     // 다른 연도 조정은 건드리지 않고 이번 연도만 교체
     const others = adjustments.filter((a) => a.year !== year);
@@ -136,17 +142,42 @@ export function BudgetAdjustmentModal({
 
     if (result.ok) {
       addToast({ type: "success", message: t("저장되었습니다. 카드에 바로 반영됩니다.", lang) });
-      setNeedPassword(false);
+      setPwOpen(false);
       setPassword("");
+      setPwError("");
       onClose();
       return;
     }
     if (result.needPassword) {
-      setNeedPassword(true);
-      addToast({ type: "error", message: t("비밀번호가 필요합니다.", lang) });
+      // 비밀번호가 틀렸거나 아직 안 받은 경우 — 입력 화면을 열어 그 안에서 안내
+      setPwOpen(true);
+      setPwError(t("비밀번호가 올바르지 않습니다.", lang));
       return;
     }
     addToast({ type: "error", message: result.error || t("저장에 실패했습니다.", lang) });
+  };
+
+  /** [저장] 클릭 — 배포 환경이면 비밀번호 입력 화면을 먼저 띄운다 */
+  const handleSaveClick = () => {
+    const filled = collectRows();
+    if (!filled) return;
+    if (requiresPassword) {
+      setPassword("");
+      setPwError("");
+      setPwOpen(true);
+      return;
+    }
+    void persist(filled);
+  };
+
+  const submitPassword = () => {
+    if (!password.trim()) {
+      setPwError(t("비밀번호를 입력해주세요.", lang));
+      return;
+    }
+    const filled = collectRows();
+    if (!filled) return;
+    void persist(filled, password);
   };
 
   return (
@@ -315,15 +346,6 @@ export function BudgetAdjustmentModal({
               </b>
             </div>
             <div className="flex items-center gap-2">
-              {needPassword && (
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t("비밀번호", lang)}
-                  className="text-[12px] border border-rose-300 rounded px-2 py-1 outline-none focus:border-rose-500"
-                />
-              )}
               <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-[12px]">
                 <RotateCcw className="w-3.5 h-3.5 mr-1" />
                 {t("취소", lang)}
@@ -331,7 +353,7 @@ export function BudgetAdjustmentModal({
               <Button
                 type="button"
                 size="sm"
-                onClick={() => handleSave(needPassword ? password : undefined)}
+                onClick={handleSaveClick}
                 disabled={saving}
                 className="text-[12px] bg-slate-800 text-white hover:bg-slate-900"
               >
@@ -342,6 +364,75 @@ export function BudgetAdjustmentModal({
           </div>
         </div>
       </div>
+
+      {/* 비밀번호 입력 화면 — 저장 클릭 시 (배포 환경) */}
+      {pwOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !saving && setPwOpen(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Lock className="w-4 h-4 text-slate-600" />
+              <h4 className="text-[14px] font-bold text-slate-900">{t("비밀번호 입력", lang)}</h4>
+            </div>
+            <p className="text-[11.5px] text-slate-500 leading-snug mb-3">
+              {t("저장하려면 편집 비밀번호가 필요합니다.", lang)}
+            </p>
+
+            <input
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (pwError) setPwError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !saving) submitPassword();
+                if (e.key === "Escape" && !saving) setPwOpen(false);
+              }}
+              placeholder={t("비밀번호", lang)}
+              className={`w-full text-[13px] border rounded px-2.5 py-2 outline-none ${
+                pwError
+                  ? "border-rose-400 focus:border-rose-500"
+                  : "border-slate-300 focus:border-slate-500"
+              }`}
+            />
+            {pwError && <p className="text-[11.5px] text-rose-600 mt-1.5">{pwError}</p>}
+
+            <div className="flex justify-end gap-2 mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setPwOpen(false)}
+                disabled={saving}
+                className="text-[12px]"
+              >
+                {t("취소", lang)}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={submitPassword}
+                disabled={saving}
+                className="text-[12px] bg-slate-800 text-white hover:bg-slate-900"
+              >
+                {saving ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                )}
+                {t("저장", lang)}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

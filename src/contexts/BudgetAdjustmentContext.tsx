@@ -13,6 +13,8 @@ interface SaveResult {
 interface BudgetAdjustmentContextValue {
   adjustments: BudgetAdjustment[];
   loaded: boolean;
+  /** 저장 시 비밀번호가 필요한 환경인지 (배포=true, 로컬=false) */
+  requiresPassword: boolean;
   /** false = 원 계획(수기조정 미반영), true = 조정 후 */
   applyAdjustments: boolean;
   setApplyAdjustments: (v: boolean) => void;
@@ -27,6 +29,7 @@ export function BudgetAdjustmentProvider({ children }: { children: React.ReactNo
   const [loaded, setLoaded] = useState(false);
   // 기본은 "조정 후" — 입력한 값이 바로 보이도록. 토글로 원 계획과 비교 가능.
   const [applyAdjustments, setApplyAdjustments] = useState(true);
+  const [requiresPassword, setRequiresPassword] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -34,6 +37,7 @@ export function BudgetAdjustmentProvider({ children }: { children: React.ReactNo
       if (!res.ok) throw new Error(res.statusText);
       const json = await res.json();
       setAdjustments(normalizeAdjustments(json?.data));
+      setRequiresPassword(!!json?.requiresPassword);
     } catch {
       // 조회 실패는 조정 없음으로 취급 — 대시보드 본체는 그대로 동작해야 한다
       setAdjustments([]);
@@ -65,8 +69,8 @@ export function BudgetAdjustmentProvider({ children }: { children: React.ReactNo
   }, []);
 
   const value = useMemo(
-    () => ({ adjustments, loaded, applyAdjustments, setApplyAdjustments, save, reload }),
-    [adjustments, loaded, applyAdjustments, save, reload]
+    () => ({ adjustments, loaded, requiresPassword, applyAdjustments, setApplyAdjustments, save, reload }),
+    [adjustments, loaded, requiresPassword, applyAdjustments, save, reload]
   );
 
   return (
@@ -86,6 +90,7 @@ export function useBudgetAdjustments(): BudgetAdjustmentContextValue {
     () => ({
       adjustments: [],
       loaded: true,
+      requiresPassword: false,
       applyAdjustments: false,
       setApplyAdjustments: () => {},
       save: async () => ({ ok: false, error: "저장할 수 없는 화면입니다." }),

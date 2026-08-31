@@ -198,7 +198,12 @@ export async function GET(request: NextRequest) {
       });
     }
     const data = await readAdjustments();
-    return NextResponse.json({ success: true, data });
+    // 배포 환경에서만 저장 시 비밀번호를 요구한다 → 클라이언트가 미리 알고 입력창을 띄우도록
+    return NextResponse.json({
+      success: true,
+      data,
+      requiresPassword: process.env.VERCEL === "1",
+    });
   } catch (error: any) {
     console.error("예산 수기조정 조회 오류:", error);
     return NextResponse.json(
