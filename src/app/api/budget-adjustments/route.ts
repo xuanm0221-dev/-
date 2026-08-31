@@ -15,12 +15,33 @@ function shouldUseRedis(): boolean {
   return !!(withKv || withUpstash);
 }
 
+function redisSource(): "kv" | "upstash" | null {
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) return "kv";
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) return "upstash";
+  return null;
+}
+
 function getRedis(): Redis | null {
   if (!shouldUseRedis()) return null;
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
   return new Redis({ url, token });
+}
+
+/** 원인 파악용 요약 — URL/토큰 값은 절대 담지 않는다 */
+function describeRedisConfig() {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+  return {
+    vercel: process.env.VERCEL === "1",
+    source: redisSource(),
+    urlScheme: url ? url.split(":")[0] : null,
+    urlIsRest: url.startsWith("https://"),
+    urlHostSuffix: url
+      ? url.replace("https://", "").replace("http://", "").split(".").slice(-2).join(".")
+      : null,
+    hasEditPassword: !!process.env.EDIT_PASSWORD,
+  };
 }
 
 function getFilePath(): string {
@@ -60,7 +81,16 @@ async function readAdjustments(): Promise<BudgetAdjustment[]> {
 async function writeAdjustments(list: BudgetAdjustment[]): Promise<void> {
   const redis = getRedis();
   if (redis) {
-    await redis.set(REDIS_KEY, JSON.stringify(list));
+    try {
+      await redis.set(REDIS_KEY, JSON.stringify(list));
+    } catch (e: any) {
+      const cfg = describeRedisConfig();
+      throw new Error(
+        `Redis 저장 실패 (${e?.message || e}). 사용 중인 변수=${cfg.source}, URL 형식=${
+          cfg.urlIsRest ? "https REST" : `${cfg.urlScheme ?? "없음"} (REST URL 아님)`
+        }. Vercel 환경변수의 REST URL/토큰이 유효한지 확인해주세요.`
+      );
+    }
     return;
   }
   // Vercel 은 파일시스템이 읽기 전용이라 파일 저장이 불가능하다.
@@ -76,9 +106,32 @@ async function writeAdjustments(list: BudgetAdjustment[]): Promise<void> {
   fs.writeFileSync(filePath, JSON.stringify(list, null, 2), "utf-8");
 }
 
-// GET: 전체 조회 (공개)
-export async function GET() {
+// GET: 전체 조회 (공개) / ?health=1 이면 저장소 상태 진단
+export async function GET(request: NextRequest) {
   try {
+    if (request.nextUrl.searchParams.get("health")) {
+      const cfg = describeRedisConfig();
+      const redis = getRedis();
+      let redisReachable: boolean | null = null;
+      let redisError: string | null = null;
+      if (redis) {
+        try {
+          await redis.get(REDIS_KEY);
+          redisReachable = true;
+        } catch (e: any) {
+          redisReachable = false;
+          redisError = e?.message || String(e);
+        }
+      }
+      return NextResponse.json({
+        success: true,
+        ...cfg,
+        redisConfigured: !!redis,
+        redisReachable,
+        redisError,
+        storage: redis ? "redis" : cfg.vercel ? "없음 (저장 불가)" : "file",
+      });
+    }
     const data = await readAdjustments();
     return NextResponse.json({ success: true, data });
   } catch (error: any) {

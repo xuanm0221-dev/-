@@ -132,6 +132,11 @@ const BRAND_ONLY_LEAF_HINTS = ["인테리어개발"];
 // - buNeutral: true 면 bu 구분 없이 (모든 브랜드 합계 1행)
 interface MergeRule { patterns: string[]; mergedName: string; bu?: string; buNeutral?: boolean }
 const MERGE_LEAVES: Record<string, MergeRule[]> = {
+  "지급수수료": [
+    // Supply Chain 하위(VAS 수리비용·RFID·재고소각·QA·AI 프로젝트·창고 이전 등)를 한 줄로 판정.
+    // 개별로 두면 연간계획이 0인 항목(창고 이전 비용 등)이 판정에서 통째로 빠진다.
+    { patterns: ["Supply Chain", "SupplyChain"], mergedName: "Supply Chain" },
+  ],
   "복리후생비": [
     // 5대보험 · 공적금 · 주재원지원금 각각 브랜드 구분 없이 전 브랜드 합산 1행씩
     { patterns: ["5대보험"], mergedName: "5대보험", buNeutral: true },
