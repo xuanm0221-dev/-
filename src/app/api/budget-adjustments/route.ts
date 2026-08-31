@@ -44,6 +44,69 @@ function describeRedisConfig() {
   };
 }
 
+/**
+ * undici 의 "fetch failed" 는 진짜 원인이 error.cause 에 들어있다.
+ * 호스트명이 섞여 나올 수 있어 코드/요약만 추린다 (health 응답은 공개이므로).
+ */
+function describeCause(e: any): { message: string; code: string | null } {
+  const chain: any[] = [];
+  let cur = e;
+  for (let i = 0; i < 5 && cur; i++) {
+    chain.push(cur);
+    cur = cur.cause;
+  }
+  const withCode = chain.find((c) => c?.code);
+  const deepest = chain[chain.length - 1];
+  const raw = String(deepest?.message ?? e?.message ?? e);
+  // 호스트명(xxx.upstash.io 등) 은 마스킹
+  const HOST_SUFFIXES = ["upstash.io", "vercel-storage.com"];
+  let message = raw;
+  for (const suffix of HOST_SUFFIXES) {
+    let at = message.indexOf(suffix);
+    while (at !== -1) {
+      let start = at;
+      while (start > 0 && /[\w.-]/.test(message[start - 1])) start--;
+      message = message.slice(0, start) + "<host>" + message.slice(at + suffix.length);
+      at = message.indexOf(suffix);
+    }
+  }
+  return { message, code: withCode?.code ?? null };
+}
+
+/** Upstash REST 에 직접 /ping 을 쳐서 DNS·TLS·인증 중 무엇이 문제인지 가른다 */
+async function probeRedisRest(): Promise<Record<string, unknown>> {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+  if (!url || !token) return { probe: "설정 없음" };
+  try {
+    const base = url.endsWith("/") ? url.slice(0, -1) : url;
+    const res = await fetch(base + "/ping", {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    return {
+      probe: "응답 받음",
+      httpStatus: res.status,
+      verdict:
+        res.status === 200 ? "정상 — 연결·인증 모두 OK"
+        : res.status === 401 || res.status === 403 ? "토큰이 유효하지 않음 (URL·호스트는 살아있음)"
+        : `예상 밖 응답 코드 ${res.status}`,
+    };
+  } catch (e: any) {
+    const c = describeCause(e);
+    return {
+      probe: "연결 실패",
+      errorCode: c.code,
+      errorMessage: c.message,
+      verdict:
+        c.code === "ENOTFOUND" ? "호스트를 찾을 수 없음 — DB 가 삭제되었거나 URL 이 잘못됨"
+        : c.code === "ECONNREFUSED" ? "연결 거부 — DB 가 중지/삭제된 상태로 보임"
+        : c.code === "CERT_HAS_EXPIRED" ? "TLS 인증서 만료"
+        : "네트워크 단계에서 실패 (인증 이전)",
+    };
+  }
+}
+
 function getFilePath(): string {
   return path.join(process.cwd(), "data", "budget-adjustments", "adjustments.json");
 }
@@ -85,10 +148,10 @@ async function writeAdjustments(list: BudgetAdjustment[]): Promise<void> {
       await redis.set(REDIS_KEY, JSON.stringify(list));
     } catch (e: any) {
       const cfg = describeRedisConfig();
+      const c = describeCause(e);
       throw new Error(
-        `Redis 저장 실패 (${e?.message || e}). 사용 중인 변수=${cfg.source}, URL 형식=${
-          cfg.urlIsRest ? "https REST" : `${cfg.urlScheme ?? "없음"} (REST URL 아님)`
-        }. Vercel 환경변수의 REST URL/토큰이 유효한지 확인해주세요.`
+        `Redis 저장 실패 [${c.code ?? "원인코드 없음"}] ${c.message} · 변수=${cfg.source}` +
+          ` · 진단: /api/budget-adjustments?health=1`
       );
     }
     return;
@@ -120,7 +183,8 @@ export async function GET(request: NextRequest) {
           redisReachable = true;
         } catch (e: any) {
           redisReachable = false;
-          redisError = e?.message || String(e);
+          const c = describeCause(e);
+          redisError = c.code ? `${c.code}: ${c.message}` : c.message;
         }
       }
       return NextResponse.json({
@@ -129,6 +193,7 @@ export async function GET(request: NextRequest) {
         redisConfigured: !!redis,
         redisReachable,
         redisError,
+        restProbe: await probeRedisRest(),
         storage: redis ? "redis" : cfg.vercel ? "없음 (저장 불가)" : "file",
       });
     }
