@@ -3,10 +3,18 @@
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, ArrowDown, Plus, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, ArrowDown, Plus, Minus, Pencil } from "lucide-react";
 import { formatPercent, formatK } from "@/lib/utils";
 import { getCategoryDetail, getMonthlyTotal, getAggregatedData, type BizUnit, type Mode } from "@/lib/expenseData";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useBudgetAdjustments } from "@/contexts/BudgetAdjustmentContext";
+import {
+  adjustmentDetailByLv1,
+  adjustmentLv2Label,
+  adjustmentNote,
+  type BudgetAdjustment,
+} from "@/lib/budgetAdjustments";
+import { autoCnLabel } from "@/lib/accountLabels";
 import { t, getDisplayLabel } from "@/lib/translations";
 import React, { Fragment, useEffect, useState } from "react";
 
@@ -124,7 +132,26 @@ export function BizUnitCard({
   titleControl,
 }: BizUnitCardProps) {
   const { lang } = useLanguage();
+  const { adjustments, applyAdjustments } = useBudgetAdjustments();
   const isCorporate = businessUnit === "법인";
+  // 예산 수기조정 — "조정 후" 뷰일 때만. 연간계획 가산은 BrandCard 에서 이미 반영됐고,
+  // 여기서는 어느 대분류가 조정됐는지 표시(배지 + 펼침 시 '수기조정' 행)만 담당한다.
+  const adjByLv1 = applyAdjustments && yearType === "actual"
+    ? adjustmentDetailByLv1(adjustments, year, businessUnit)
+    : new Map<string, BudgetAdjustment[]>();
+  const adjDelta = (lv1: string) => (adjByLv1.get(lv1) ?? []).reduce((s2, a) => s2 + a.amount, 0);
+  const adjTitle = (lv1: string) => {
+    const rows = adjByLv1.get(lv1) ?? [];
+    if (rows.length === 0) return undefined;
+    return rows
+      .map((a) => {
+        const who = a.lv2 ? `${adjustmentLv2Label(a, lang, autoCnLabel)} ` : "";
+        const memo = adjustmentNote(a, lang);
+        return `${who}${a.amount >= 0 ? "+" : ""}${formatK(a.amount)}${memo ? ` · ${memo}` : ""}`;
+      })
+      .join(String.fromCharCode(10));
+  };
+  const adjTotal = Array.from(adjByLv1.values()).flat().reduce((s2, a) => s2 + a.amount, 0);
   const themeKey = isCommon ? "COMMON" : isCorporate ? "법인" : (businessUnit as keyof typeof THEME);
   const theme = THEME[themeKey] || THEME.COMMON;
   const detailMode = yearType === "actual" ? "ytd" : mode;
@@ -322,11 +349,23 @@ export function BizUnitCard({
   const showAnnualColsTop = mode === "ytd";
   const gridStyle = {
     gridTemplateColumns: showAnnualColsTop
-      ? "minmax(0,140px) 62px 62px 66px 38px 62px 54px 66px 62px"
+      ? "minmax(0,140px) 62px 62px 66px 38px 62px 54px 66px 66px 62px"
       : "minmax(0,158px) 72px 72px 76px 40px",
   };
   // 남은월 라벨: 8월~12월예산 (7월 기준)
   const remainingLabel = month < 12 ? `${month + 1}~12${t("월", lang)}${t("예산", lang)}` : `${t("예산", lang)}`;
+  // 잔여예산 = 연간계획 − YTD 실적 (음수면 계획 초과)
+  const budgetLeft = (annualPlan: number, currAmt: number) => {
+    if (!(annualPlan > 0)) return <span className="text-gray-400">-</span>;
+    const left = annualPlan - currAmt;
+    return <span className={left < 0 ? "text-red-600" : ""}>{formatK(left)}</span>;
+  };
+  // 2열(당년 금액) 헤더 라벨: 당월 / YTD / N분기 (예산 연도는 "연간")
+  const amountColLabel =
+    yearType === "plan" ? t("연간", lang)
+    : mode === "ytd" ? "YTD"
+    : mode === "monthly" ? t("당월", lang)
+    : `${mode.slice(1)}${t("분기", lang)}`;
 
   return (
     <Card className="flex flex-col shadow-md hover:shadow-lg transition-shadow overflow-hidden rounded-lg">
@@ -535,8 +574,8 @@ export function BizUnitCard({
                 {showAnnualCols ? (
                   <div className="grid gap-1 text-[10.5px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5 px-1.5 py-1 bg-slate-50 rounded whitespace-nowrap" style={gridStyle}>
                     <div>{t("대분류", lang)}</div>
-                    <div className="text-center">{t("금액", lang)}</div>
-                    <div className="text-center">{t("전년금액", lang)}</div>
+                    <div className="text-center">{amountColLabel}</div>
+                    <div className="text-center">{t("전년동기간", lang)}</div>
                     <div className="text-center">YOY{t("금액", lang)}</div>
                     <div className="text-center">YoY</div>
                     <div className="text-center border-l border-slate-200 pl-1.5">{t("연간계획", lang)}</div>
@@ -544,14 +583,15 @@ export function BizUnitCard({
                       {t("진척률", lang)}
                       {expectedPacePct != null && <span className="ml-0.5 text-slate-400 normal-case">({expectedPacePct}%)</span>}
                     </div>
+                    <div className="text-center border-l border-slate-200 pl-1.5">{t("잔여예산", lang)}</div>
                     <div className="text-center border-l border-slate-200 pl-1.5">{remainingLabel}</div>
                     <div className="text-center">{t("판정", lang)}</div>
                   </div>
                 ) : (
                   <div className="grid gap-1 text-[11px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5 px-1.5 py-1 bg-slate-50 rounded whitespace-nowrap" style={gridStyle}>
                     <div>{t("대분류", lang)}</div>
-                    <div className="text-center">{t("금액", lang)}</div>
-                    <div className="text-center">{t("전년금액", lang)}</div>
+                    <div className="text-center">{amountColLabel}</div>
+                    <div className="text-center">{t("전년동기간", lang)}</div>
                     <div className="text-center">YOY{t("금액", lang)}</div>
                     <div className="text-center">YoY</div>
                   </div>
@@ -576,10 +616,14 @@ export function BizUnitCard({
                     const diff = projected - totalAnnualPlan;
                     return (
                       <>
-                        <div className="text-right border-l border-gray-200 pl-1.5">{formatK(totalAnnualPlan)}</div>
+                        <div className="text-right border-l border-gray-200 pl-1.5" title={adjTotal !== 0 ? `${t("수기조정", lang)} ${adjTotal >= 0 ? "+" : ""}${formatK(adjTotal)}` : undefined}>
+                          {adjTotal !== 0 && <Pencil className="inline w-2.5 h-2.5 text-amber-600 mr-0.5 align-[-1px]" />}
+                          {formatK(totalAnnualPlan)}
+                        </div>
                         <div className={`text-right ${usageColor(totalUsagePct)}`}>
                           {totalUsagePct != null ? formatPercent(totalUsagePct, 0) : "-"}
                         </div>
+                        <div className="text-right border-l border-gray-200 pl-1.5">{budgetLeft(totalAnnualPlan, totalCurr)}</div>
                         <div className="text-right border-l border-gray-200 pl-1.5">{formatK(totalRemaining)}</div>
                         <div className="text-center">
                           <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
@@ -627,7 +671,8 @@ export function BizUnitCard({
                     </div>
                     {showAnnualCols && (
                       <>
-                        <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
+                        <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5" title={adjTitle(lv1Key)}>
+                          {adjDelta(lv1Key) !== 0 && <Pencil className="inline w-2.5 h-2.5 text-amber-600 mr-0.5 align-[-1px]" />}
                           {detail.annualPlan != null ? formatK(detail.annualPlan) : "-"}
                         </div>
                         <div className={`text-right ${theme.cellBg} -my-1 py-1 ${usageColor(detail.usagePct, expectedPacePctForRow)}`}>
@@ -643,6 +688,7 @@ export function BizUnitCard({
                           const diff = projected - ap;
                           return (
                             <>
+                              <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">{budgetLeft(ap, currAmt)}</div>
                               <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
                                 {ap > 0 ? formatK(rem) : "-"}
                               </div>
@@ -662,6 +708,24 @@ export function BizUnitCard({
                   {/* lv2 행 (lv1 펼침 시) */}
                   {lv1Open && (
                     <div className="mb-0.5 space-y-0.5">
+                      {showAnnualCols && (adjByLv1.get(lv1Key) ?? []).map((adj) => (
+                        <div key={adj.id} className="grid gap-1.5 items-center py-0.5 text-[11.5px] bg-amber-50/70 rounded" style={gridStyle}>
+                          <div className="text-amber-800 flex items-center gap-1 pl-3 min-w-0">
+                            <Pencil className="w-2.5 h-2.5 flex-shrink-0" />
+                            <span className="truncate" title={adjustmentNote(adj, lang) || undefined}>
+                              {adj.lv2 ? adjustmentLv2Label(adj, lang, autoCnLabel) : t("수기조정", lang)}
+                            </span>
+                          </div>
+                          <div /><div /><div /><div />
+                          <div
+                            className={`text-right border-l border-gray-100 pl-1.5 font-medium ${adj.amount >= 0 ? "text-rose-700" : "text-blue-700"}`}
+                            title={adjustmentNote(adj, lang) || undefined}
+                          >
+                            {adj.amount >= 0 ? "+" : ""}{formatK(adj.amount)}
+                          </div>
+                          <div /><div /><div /><div />
+                        </div>
+                      ))}
                       {getLv2Rows(lv1Key).map((c2) => {
                         const lv2Key = `${lv1Key}|${c2.label}`;
                         const lv2Open = isExpanded(lv2Key);
@@ -712,6 +776,7 @@ export function BizUnitCard({
                                     const diff = projected - ap;
                                     return (
                                       <>
+                                        <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">{budgetLeft(ap, c2.amount)}</div>
                                         <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
                                           {ap > 0 ? formatK(rem) : "-"}
                                         </div>
@@ -793,6 +858,7 @@ export function BizUnitCard({
                                           const diff = projected - ap;
                                           return (
                                             <>
+                                              <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">{budgetLeft(ap, c3.amount)}</div>
                                               <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
                                                 {ap > 0 ? formatK(rem) : "-"}
                                               </div>

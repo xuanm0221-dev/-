@@ -22,6 +22,8 @@ import {
 } from "@/lib/expenseData";
 
 import { BizUnitCard, type ExpenseDetail } from "./BizUnitCard";
+import { useBudgetAdjustments } from "@/contexts/BudgetAdjustmentContext";
+import { adjustmentByLv1 } from "@/lib/budgetAdjustments";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
 
@@ -87,6 +89,7 @@ export function BrandCard({
   titleControl,
 }: BrandCardProps) {
   const { lang } = useLanguage();
+  const { adjustments, applyAdjustments } = useBudgetAdjustments();
   const isPlanYear = year === 2026 && yearType === 'plan';
   
   // 2026년(예산): 연간 데이터 사용
@@ -150,6 +153,13 @@ export function BrandCard({
     ? getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", "plan")
     : [];
   const annualPlanMap = new Map(annualPlanData.map((item) => [item.cost_lv1, item.amount]));
+  // 예산 수기조정: "조정 후" 뷰일 때만 대분류별 가감액을 연간계획에 더한다.
+  // (원 계획 뷰에서는 CSV 계획 그대로 — 두 뷰를 토글로 비교)
+  if (applyAdjustments && yearType === "actual") {
+    for (const [lv1, delta] of adjustmentByLv1(adjustments, year, bizUnit)) {
+      annualPlanMap.set(lv1, (annualPlanMap.get(lv1) ?? 0) + delta);
+    }
+  }
   // YTD 시점 계획 — 해당 월까지 계획 누적
   const planYtdData = yearType === 'actual'
     ? getMonthlyAggregatedByCategory(bizUnit, year, month, "ytd", "plan")

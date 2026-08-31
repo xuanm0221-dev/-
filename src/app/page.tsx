@@ -293,10 +293,10 @@ export default function HomePage() {
         {/* HTML 다운로드 대상: 사업부 카드 + 상세표 (드롭다운으로 사업부 전환) */}
         <div ref={isPlanYear ? homeExportRef : undefined}>
           {(() => {
-            // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭 (YTD 7컬럼 vs 당월/분기 5컬럼).
+            // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭 (YTD 10컬럼 vs 당월/분기 5컬럼).
             // flex-none으로 카드가 자연 폭을 지키고, 남는 공간은 우측 panel이 흡수.
             const cardWidthClass = mode === "ytd"
-              ? "xl:flex-none xl:w-[720px]"
+              ? "xl:flex-none xl:w-[790px]"
               : "xl:flex-none xl:w-[470px]";
             return (
           <div className="flex flex-col xl:flex-row gap-5 items-start mb-8">

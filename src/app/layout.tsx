@@ -6,6 +6,7 @@ import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { ExpenseDataProvider } from "@/components/dashboard/ExpenseDataProvider";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { BudgetAdjustmentProvider } from "@/contexts/BudgetAdjustmentContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -60,7 +61,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ToastProvider>
           <LanguageProvider>
-            <ExpenseDataProvider>{children}</ExpenseDataProvider>
+            <ExpenseDataProvider>
+              <BudgetAdjustmentProvider>{children}</BudgetAdjustmentProvider>
+            </ExpenseDataProvider>
           </LanguageProvider>
         </ToastProvider>
         {/*

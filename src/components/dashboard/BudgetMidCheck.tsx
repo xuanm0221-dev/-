@@ -15,13 +15,19 @@
  */
 
 import { Fragment, useMemo, useState } from "react";
-import { AlertCircle, TrendingDown, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
-import { getCategoryDetail, getMonthlyTotal, type BizUnit } from "@/lib/expenseData";
+import { AlertCircle, TrendingDown, CheckCircle2, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import { getCategoryDetail, getMonthlyTotal, getAggregatedData, type BizUnit } from "@/lib/expenseData";
 import { formatK, formatPercent } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useBudgetAdjustments } from "@/contexts/BudgetAdjustmentContext";
+import { filterAdjustments } from "@/lib/budgetAdjustments";
+import { BudgetAdjustmentModal } from "./BudgetAdjustmentModal";
 import { t } from "@/lib/translations";
+import { tLabel } from "@/lib/accountLabels";
 
 type Lang = "ko" | "zh";
+
+
 
 interface BudgetMidCheckProps {
   bizUnit: BizUnit;
@@ -86,14 +92,19 @@ interface Lv1Group {
 const PROJ_OVER = 102;
 const PROJ_UNDER = 95;
 
-function judgeVerdict(projectedPct: number): { verdict: Verdict; conclusion: string } {
+function judgeVerdict(projectedPct: number, lang: Lang): { verdict: Verdict; conclusion: string } {
   if (projectedPct >= PROJ_OVER) {
-    return { verdict: "over-clear", conclusion: `예상 소진 ${PROJ_OVER}% 이상 → 증액 필요` };
+    return { verdict: "over-clear", conclusion: t("예상 소진 {n}% 이상 → 증액 필요", lang).replace("{n}", String(PROJ_OVER)) };
   }
   if (projectedPct <= PROJ_UNDER) {
-    return { verdict: "under-cut", conclusion: `예상 소진 ${PROJ_UNDER}% 이하 → 감축 가능` };
+    return { verdict: "under-cut", conclusion: t("예상 소진 {n}% 이하 → 감축 가능", lang).replace("{n}", String(PROJ_UNDER)) };
   }
-  return { verdict: "normal", conclusion: `예상 소진 ${PROJ_UNDER}~${PROJ_OVER}% 오차 범위 · 계획대로 진행` };
+  return {
+    verdict: "normal",
+    conclusion: t("예상 소진 {a}~{b}% 오차 범위 · 계획대로 진행", lang)
+      .replace("{a}", String(PROJ_UNDER))
+      .replace("{b}", String(PROJ_OVER)),
+  };
 }
 
 // 분석에서 제외할 대분류 — 현재 없음
@@ -190,6 +201,35 @@ const APPROVED_ADDITIONS: Record<string, ApprovedAddition> = {
 
 export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
   const { lang } = useLanguage();
+  const { adjustments, applyAdjustments, setApplyAdjustments } = useBudgetAdjustments();
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  // 이 화면(연도·브랜드)에 걸린 수기조정 — 토글 노출 여부 판단용
+  const myAdjustments = filterAdjustments(adjustments, year, bizUnit);
+  const myAdjTotal = myAdjustments.reduce((sum, a) => sum + a.amount, 0);
+  // 대분류 드롭다운 후보 + 대분류별 항목명(중분류) 자동완성 후보
+  const { lv1Options, lv2OptionsByLv1 } = useMemo(() => {
+    try {
+      const lv1Set = new Set<string>();
+      const lv2Map = new Map<string, Set<string>>();
+      for (const r of getAggregatedData().category_detail) {
+        const l1 = (r.cost_lv1 ?? "").trim();
+        if (!l1) continue;
+        lv1Set.add(l1);
+        const l2 = (r.cost_lv2 ?? "").trim();
+        if (!l2) continue;
+        if (!lv2Map.has(l1)) lv2Map.set(l1, new Set());
+        lv2Map.get(l1)!.add(l2);
+      }
+      return {
+        lv1Options: Array.from(lv1Set).sort(),
+        lv2OptionsByLv1: Object.fromEntries(
+          Array.from(lv2Map.entries()).map(([k, v]) => [k, Array.from(v).sort()])
+        ) as Record<string, string[]>,
+      };
+    } catch {
+      return { lv1Options: [] as string[], lv2OptionsByLv1: {} as Record<string, string[]> };
+    }
+  }, []);
 
   const { overGroups, underGroups, onTrackGroups, expectedPace, totals, roas, overCount, underCount } = useMemo(() => {
     // 5개 소스: 연간 계획 · YTD 계획 · YTD 실적 · 전년 YTD 실적 · 전년 연간 실적(12월)
@@ -283,6 +323,32 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       prevAnnualActualMap.set(k, (prevAnnualActualMap.get(k) || 0) + (a.amount || 0));
     }
 
+    // 예산 수기조정: 대분류 단위 가감액을 해당 대분류의 계획 행들에 금액 비례로 안분한다.
+    // (입력 단위가 대분류라 특정 리프에 귀속시킬 근거가 없어 비례 배분 — 총액은 정확히 일치)
+    if (applyAdjustments) {
+      for (const a of filterAdjustments(adjustments, year, bizUnit)) {
+        if (!a.amount) continue;
+        const keys = Array.from(infoMap.entries())
+          .filter(([, info]) => info.lv1 === a.lv1 && (a.bizUnit === "법인" || !info.bu || info.bu === a.bizUnit))
+          .map(([k]) => k);
+        const base = keys.reduce((sum, k) => sum + (planAnnualMap.get(k) || 0), 0);
+        if (keys.length > 0 && base > 0) {
+          let left = a.amount;
+          keys.forEach((k, idx) => {
+            const cur = planAnnualMap.get(k) || 0;
+            const share = idx === keys.length - 1 ? left : Math.round((a.amount * cur) / base);
+            left -= share;
+            planAnnualMap.set(k, cur + share);
+          });
+        } else {
+          // 계획 행이 아직 없는 신규 대분류 → 단독 행으로 편입
+          const k = `${a.bizUnit}|${a.lv1}||`;
+          planAnnualMap.set(k, (planAnnualMap.get(k) || 0) + a.amount);
+          if (!infoMap.has(k)) infoMap.set(k, { bu: a.bizUnit === "법인" ? "" : a.bizUnit, lv1: a.lv1, lv2: "", lv3: "" });
+        }
+      }
+    }
+
     const expectedPace = (month / 12) * 100;
     const items: BudgetItem[] = [];
     for (const k of infoMap.keys()) {
@@ -311,7 +377,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       const projectedIfFollowPlan = actual + planRemaining;
       const projectedPct = planAnnual > 0 ? (projectedIfFollowPlan / planAnnual) * 100 : 0;
       const deltaP = annualPct - expectedPace;
-      const raw = judgeVerdict(projectedPct);
+      const raw = judgeVerdict(projectedPct, lang as Lang);
       // 승인 오버라이드 (사전 지정 or 실사용액 기반) → 좌측 증액검토에 반드시 표시
       const approvalOverride = APPROVED_ADDITIONS[`${info.bu}|${info.lv1}`];
       const hasApproval = !!approvalOverride;
@@ -486,7 +552,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       overCount: overItems.length,
       underCount: underItems.length,
     };
-  }, [bizUnit, year, month]);
+  }, [bizUnit, year, month, adjustments, applyAdjustments, lang]);
 
   // 탭: 핵심 결론(Overview + KPI) vs 상세 분석(예산초과/감축 · 정상 진행 표)
   const [tab, setTab] = useState<"overview" | "analysis">("overview");
@@ -525,8 +591,45 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
               {t(bizUnit, lang)} · {t("예산 중간점검", lang)}
             </h2>
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
-              {year}년 {month}월 YTD · 예상 진척률 <b className="text-slate-700">{expectedPace.toFixed(0)}%</b>
+              {year}{t("년", lang)} {month}{t("월", lang)} YTD · {t("예상 진척률", lang)} <b className="text-slate-700">{expectedPace.toFixed(0)}%</b>
             </span>
+          </div>
+          {/* 예산 수기조정 — 원계획/조정후 토글 + 입력 버튼 */}
+          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
+            {myAdjustments.length > 0 && (
+              <div className="inline-flex rounded-md border border-slate-300 overflow-hidden" role="group">
+                <button
+                  type="button"
+                  onClick={() => setApplyAdjustments(false)}
+                  className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                    !applyAdjustments ? "bg-slate-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {t("원 계획", lang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setApplyAdjustments(true)}
+                  className={`px-2.5 py-1 text-[11px] font-semibold border-l border-slate-300 transition-colors ${
+                    applyAdjustments ? "bg-amber-500 text-white" : "bg-white text-slate-600 hover:bg-slate-50"
+                  }`}
+                  title={`${t("수기조정", lang)} ${myAdjTotal >= 0 ? "+" : ""}${formatK(myAdjTotal)}`}
+                >
+                  {t("조정 후", lang)}
+                  <span className="ml-1 tabular-nums font-bold">
+                    {myAdjTotal >= 0 ? "+" : ""}{formatK(myAdjTotal)}
+                  </span>
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setAdjustOpen(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-amber-400 bg-amber-50 text-amber-800 text-[11px] font-semibold hover:bg-amber-100 transition-colors whitespace-nowrap"
+            >
+              <Pencil className="w-3 h-3" />
+              {t("예산 수기조정", lang)}
+            </button>
           </div>
         </div>
         {tab === "overview" && (<>
@@ -696,7 +799,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
               .sort((a, b) => b.over - a.over)
               .slice(0, n)
               .map((it) => {
-                const parts = [it.bu, it.lv2 ? t(it.lv2, lang) : t(it.lv1, lang), it.lv3 ? t(it.lv3, lang) : ""].filter(Boolean);
+                const parts = [tLabel(it.bu, lang), it.lv2 ? tLabel(it.lv2, lang) : tLabel(it.lv1, lang), it.lv3 ? tLabel(it.lv3, lang) : ""].filter(Boolean);
                 return parts.join("·");
               });
             const suffix = (bucketItems[type]?.length ?? 0) > n ? ` ${t("등", lang)}` : "";
@@ -717,7 +820,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
                 : `📢 원 계획대로 균형 진행 — 변동비 월별 모니터링, 현 통제 수준 유지`;
 
           const labelOf = (it: { bu: string; lv1: string; lv2: string; lv3: string }) => {
-            const parts = [it.bu, t(it.lv1, lang), it.lv2 ? t(it.lv2, lang) : "", it.lv3 ? t(it.lv3, lang) : ""].filter(Boolean);
+            const parts = [tLabel(it.bu, lang), tLabel(it.lv1, lang), it.lv2 ? tLabel(it.lv2, lang) : "", it.lv3 ? tLabel(it.lv3, lang) : ""].filter(Boolean);
             return parts.join(" · ");
           };
 
@@ -1025,6 +1128,15 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
           <div />
         </div>
       </>)}
+      <BudgetAdjustmentModal
+        open={adjustOpen}
+        onClose={() => setAdjustOpen(false)}
+        year={year}
+        defaultBizUnit={bizUnit}
+        lv1Options={lv1Options}
+        lv2OptionsByLv1={lv2OptionsByLv1}
+        lang={lang as Lang}
+      />
     </div>
   );
 }
@@ -1536,7 +1648,7 @@ function Lv1HeaderCell({ lv1, group, tone, border, adjustSum, isOpen, confirmed,
             ? <ChevronDown className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
             : <ChevronRight className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
         )}
-        <span className="truncate">{lv1 ? t(lv1, lang) : "-"}</span>
+        <span className="truncate">{lv1 ? tLabel(lv1, lang) : "-"}</span>
       </div>
       {group ? (
         <>
@@ -1611,7 +1723,7 @@ function ItemColumn({ items, tone, border, lang }: {
                 const parts = LV2_FIRST_LV1.has(it.lv1)
                   ? [it.lv2, it.bu, it.lv3]
                   : [it.bu, it.lv2, it.lv3];
-                const localized = parts.filter(Boolean).map((p) => t(p, lang));
+                const localized = parts.filter(Boolean).map((p) => tLabel(p, lang));
                 return localized.join(" · ") || "-";
               })()}
             </div>
@@ -1629,7 +1741,7 @@ function ItemColumn({ items, tone, border, lang }: {
               </div>
               {approval && (
                 <div className="mt-0.5 space-y-0.5">
-                  <span className="inline-block px-1 py-0.5 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-800" title={approval.note}>
+                  <span className="inline-block px-1 py-0.5 rounded text-[9px] font-semibold bg-emerald-100 text-emerald-800" title={approval.note ? t(approval.note, lang) : undefined}>
                     {t("✔ 추가 사용 승인", lang)}
                   </span>
                   <table className="w-full text-[9px] border border-emerald-200 border-collapse mt-0.5">
@@ -1751,7 +1863,7 @@ function BudgetSection({
                         {isOpen
                           ? <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                           : <ChevronRight className="w-3.5 h-3.5 text-slate-500" />}
-                        {g.lv1 ? t(g.lv1, lang) : "-"}
+                        {g.lv1 ? tLabel(g.lv1, lang) : "-"}
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-right tabular-nums">{formatK(g.actualSum)}</td>
@@ -1770,7 +1882,7 @@ function BudgetSection({
                             const parts = LV2_FIRST_LV1.has(item.lv1)
                               ? [item.lv2, item.bu, item.lv3]
                               : [item.bu, item.lv2, item.lv3];
-                            const localized = parts.filter(Boolean).map((p) => t(p, lang));
+                            const localized = parts.filter(Boolean).map((p) => tLabel(p, lang));
                             return localized.join(" · ") || "-";
                           })()}
                         </td>
