@@ -182,11 +182,13 @@ export function BizUnitCard({
     const keyFn = (d: { biz_unit?: string; cost_lv2?: string }) => brandFirst ? (d.biz_unit || "-") : (d.cost_lv2 || "-");
     const labelCnFn = (d: { biz_unit_cn?: string; cost_lv2_cn?: string }) => brandFirst ? d.biz_unit_cn : d.cost_lv2_cn;
 
-    const currMap = new Map<string, { amount: number; labelCn?: string }>();
+    // 라벨(중국어)은 실적 → 계획 순으로 먼저 잡히는 값을 사용 (계획만 있는 행도 라벨이 필요)
+    const labelCnMap = new Map<string, string | undefined>();
+    const currMap = new Map<string, number>();
     for (const d of curr) {
       const key = keyFn(d);
-      const p = currMap.get(key) ?? { amount: 0, labelCn: labelCnFn(d) };
-      currMap.set(key, { amount: p.amount + (d.amount || 0), labelCn: p.labelCn ?? labelCnFn(d) });
+      currMap.set(key, (currMap.get(key) ?? 0) + (d.amount || 0));
+      if (!labelCnMap.get(key)) labelCnMap.set(key, labelCnFn(d));
     }
     const prevMap = new Map<string, number>();
     for (const d of prev) {
@@ -197,30 +199,35 @@ export function BizUnitCard({
     for (const d of plan) {
       const key = keyFn(d);
       planMap.set(key, (planMap.get(key) ?? 0) + (d.amount || 0));
+      if (!labelCnMap.get(key)) labelCnMap.set(key, labelCnFn(d));
     }
     const planYtdMap = new Map<string, number>();
     for (const d of planYtdRaw) {
       const key = keyFn(d);
       planYtdMap.set(key, (planYtdMap.get(key) ?? 0) + (d.amount || 0));
     }
-    return Array.from(currMap.entries())
-      .map(([lv2, v]) => {
+    // 실적 있는 행 ∪ 계획 있는 행 — 계획만 있고 실적 0인 행이 빠지면 하위 합이 대분류 소계와 어긋난다
+    const keys = new Set<string>([...Array.from(currMap.keys()), ...Array.from(planMap.keys())]);
+    return Array.from(keys)
+      .map((lv2) => {
+        const amount = currMap.get(lv2) ?? 0;
         const p = prevMap.get(lv2) ?? 0;
         const ap = planMap.get(lv2) ?? 0;
         const py = planYtdMap.get(lv2) ?? 0;
         return {
           label: lv2,
-          labelCn: v.labelCn,
-          amount: v.amount,
+          labelCn: labelCnMap.get(lv2),
+          amount,
           prevAmount: p,
-          amountDiff: v.amount - p,
-          yoy: p > 0 ? (v.amount / p) * 100 : null,
-          annualPlan: ap > 0 ? ap : undefined,
-          planYtd: py > 0 ? py : undefined,
-          usagePct: ap > 0 ? (v.amount / ap) * 100 : null,
+          amountDiff: amount - p,
+          yoy: p > 0 ? (amount / p) * 100 : null,
+          // 계획 0도 undefined 로 지우지 않는다 — 지우면 잔여예산이 '-'가 되어 소계에서 조용히 빠진다
+          annualPlan: ap,
+          planYtd: py,
+          usagePct: ap > 0 ? (amount / ap) * 100 : null,
         };
       })
-      .filter((r) => Math.abs(r.amount) > 0)
+      .filter((r) => Math.abs(r.amount) > 0 || r.annualPlan > 0)
       .sort((a, b) => b.amount - a.amount);
   };
 
@@ -243,11 +250,12 @@ export function BizUnitCard({
     const plan = getCategoryDetail(businessUnit, year, 12, lv1, "ytd", "plan").filter(filter);
     const planYtdRaw = getCategoryDetail(businessUnit, year, month, lv1, "ytd", "plan").filter(filter);
 
-    const currMap = new Map<string, { amount: number; labelCn?: string }>();
+    const labelCnMap = new Map<string, string | undefined>();
+    const currMap = new Map<string, number>();
     for (const d of curr) {
       const key = groupKey(d);
-      const p = currMap.get(key) ?? { amount: 0, labelCn: labelCnFn(d) };
-      currMap.set(key, { amount: p.amount + (d.amount || 0), labelCn: p.labelCn ?? labelCnFn(d) });
+      currMap.set(key, (currMap.get(key) ?? 0) + (d.amount || 0));
+      if (!labelCnMap.get(key)) labelCnMap.set(key, labelCnFn(d));
     }
     const prevMap = new Map<string, number>();
     for (const d of prev) {
@@ -258,30 +266,34 @@ export function BizUnitCard({
     for (const d of plan) {
       const key = groupKey(d);
       planMap.set(key, (planMap.get(key) ?? 0) + (d.amount || 0));
+      if (!labelCnMap.get(key)) labelCnMap.set(key, labelCnFn(d));
     }
     const planYtdMap = new Map<string, number>();
     for (const d of planYtdRaw) {
       const key = groupKey(d);
       planYtdMap.set(key, (planYtdMap.get(key) ?? 0) + (d.amount || 0));
     }
-    return Array.from(currMap.entries())
-      .map(([lv3, v]) => {
+    // 실적 있는 행 ∪ 계획 있는 행 (getLv2Rows 와 동일 규칙)
+    const keys = new Set<string>([...Array.from(currMap.keys()), ...Array.from(planMap.keys())]);
+    return Array.from(keys)
+      .map((lv3) => {
+        const amount = currMap.get(lv3) ?? 0;
         const p = prevMap.get(lv3) ?? 0;
         const ap = planMap.get(lv3) ?? 0;
         const py = planYtdMap.get(lv3) ?? 0;
         return {
           label: lv3,
-          labelCn: v.labelCn,
-          amount: v.amount,
+          labelCn: labelCnMap.get(lv3),
+          amount,
           prevAmount: p,
-          amountDiff: v.amount - p,
-          yoy: p > 0 ? (v.amount / p) * 100 : null,
-          annualPlan: ap > 0 ? ap : undefined,
-          planYtd: py > 0 ? py : undefined,
-          usagePct: ap > 0 ? (v.amount / ap) * 100 : null,
+          amountDiff: amount - p,
+          yoy: p > 0 ? (amount / p) * 100 : null,
+          annualPlan: ap,
+          planYtd: py,
+          usagePct: ap > 0 ? (amount / ap) * 100 : null,
         };
       })
-      .filter((r) => Math.abs(r.amount) > 0 && r.label !== "-")
+      .filter((r) => (Math.abs(r.amount) > 0 || r.annualPlan > 0) && r.label !== "-")
       .sort((a, b) => b.amount - a.amount);
   };
 
@@ -355,10 +367,19 @@ export function BizUnitCard({
   // 남은월 라벨: 8월~12월예산 (7월 기준)
   const remainingLabel = month < 12 ? `${month + 1}~12${t("월", lang)}${t("예산", lang)}` : `${t("예산", lang)}`;
   // 잔여예산 = 연간계획 − YTD 실적 (음수면 계획 초과)
+  // 계획이 0이어도 실적이 있으면 '-' 가 아니라 −실적(초과)으로 표기한다.
+  // '-' 로 비우면 그 실적은 상위 소계에만 반영되고 화면에서 사라져 소계가 안 맞는 것처럼 보인다.
   const budgetLeft = (annualPlan: number, currAmt: number) => {
-    if (!(annualPlan > 0)) return <span className="text-gray-400">-</span>;
+    if (!(annualPlan > 0) && !(Math.abs(currAmt) > 0)) return <span className="text-gray-400">-</span>;
     const left = annualPlan - currAmt;
     return <span className={left < 0 ? "text-red-600" : ""}>{formatK(left)}</span>;
+  };
+  // 연간계획/잔여예산/남은월예산/판정 컬럼 계산 — 계획 0을 '없음'이 아니라 '영'으로 취급
+  const budgetCells = (annualPlan: number, planYtd: number, currAmt: number) => {
+    const has = annualPlan > 0 || Math.abs(currAmt) > 0;
+    const rem = Math.max(0, annualPlan - planYtd); // 남은월 예산 (계획 0 → 0)
+    const diff = currAmt + rem - annualPlan;       // 판정 = 예상 연간 − 연간계획
+    return { has, rem, diff, isOver: diff > 0 };
   };
   // 2열(당년 금액) 헤더 라벨: 당월 / YTD / N분기 (예산 연도는 "연간")
   const amountColLabel =
@@ -611,9 +632,8 @@ export function BizUnitCard({
                   {showAnnualCols && (() => {
                     const totalPlanYtd = expenseDetails.reduce((s, d) => s + (d.planYtd ?? 0), 0);
                     const totalRemaining = Math.max(0, totalAnnualPlan - totalPlanYtd);
-                    const projected = totalCurr + totalRemaining;
-                    const isOver = projected > totalAnnualPlan && totalAnnualPlan > 0;
-                    const diff = projected - totalAnnualPlan;
+                    const diff = totalCurr + totalRemaining - totalAnnualPlan;
+                    const isOver = diff > 0;
                     return (
                       <>
                         <div className="text-right border-l border-gray-200 pl-1.5" title={adjTotal !== 0 ? `${t("수기조정", lang)} ${adjTotal >= 0 ? "+" : ""}${formatK(adjTotal)}` : undefined}>
@@ -671,29 +691,26 @@ export function BizUnitCard({
                     </div>
                     {showAnnualCols && (
                       <>
-                        <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5" title={adjTitle(lv1Key)}>
-                          {adjDelta(lv1Key) !== 0 && <Pencil className="inline w-2.5 h-2.5 text-amber-600 mr-0.5 align-[-1px]" />}
-                          {detail.annualPlan != null ? formatK(detail.annualPlan) : "-"}
-                        </div>
-                        <div className={`text-right ${theme.cellBg} -my-1 py-1 ${usageColor(detail.usagePct, expectedPacePctForRow)}`}>
-                          {detail.usagePct != null ? formatPercent(detail.usagePct, 0) : "-"}
-                        </div>
                         {(() => {
                           const ap = detail.annualPlan ?? 0;
                           const py = detail.planYtd ?? 0;
                           const currAmt = (detail.prevAmount ?? 0) + detail.amountDiff;
-                          const rem = ap > 0 ? Math.max(0, ap - py) : 0;
-                          const projected = currAmt + rem;
-                          const isOver = ap > 0 && projected > ap;
-                          const diff = projected - ap;
+                          const { has, rem, diff, isOver } = budgetCells(ap, py, currAmt);
                           return (
                             <>
+                              <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5" title={adjTitle(lv1Key)}>
+                                {adjDelta(lv1Key) !== 0 && <Pencil className="inline w-2.5 h-2.5 text-amber-600 mr-0.5 align-[-1px]" />}
+                                {has ? formatK(ap) : "-"}
+                              </div>
+                              <div className={`text-right ${theme.cellBg} -my-1 py-1 ${usageColor(detail.usagePct, expectedPacePctForRow)}`}>
+                                {detail.usagePct != null ? formatPercent(detail.usagePct, 0) : "-"}
+                              </div>
                               <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">{budgetLeft(ap, currAmt)}</div>
                               <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
-                                {ap > 0 ? formatK(rem) : "-"}
+                                {has ? formatK(rem) : "-"}
                               </div>
                               <div className="text-center">
-                                {ap > 0 ? (
+                                {has ? (
                                   <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
                                     {diff >= 0 ? "+" : ""}{formatK(diff)}
                                   </span>
@@ -761,27 +778,24 @@ export function BizUnitCard({
                               </div>
                               {showAnnualCols && (
                                 <>
-                                  <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
-                                    {c2.annualPlan != null ? formatK(c2.annualPlan) : "-"}
-                                  </div>
-                                  <div className={`text-right ${theme.cellBg} -my-0.5 py-0.5 ${usageColor(c2.usagePct, expectedPacePctForRow)}`}>
-                                    {c2.usagePct != null ? formatPercent(c2.usagePct, 0) : "-"}
-                                  </div>
                                   {(() => {
                                     const ap = c2.annualPlan ?? 0;
                                     const py = c2.planYtd ?? 0;
-                                    const rem = ap > 0 ? Math.max(0, ap - py) : 0;
-                                    const projected = c2.amount + rem;
-                                    const isOver = ap > 0 && projected > ap;
-                                    const diff = projected - ap;
+                                    const { has, rem, diff, isOver } = budgetCells(ap, py, c2.amount);
                                     return (
                                       <>
+                                        <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
+                                          {has ? formatK(ap) : "-"}
+                                        </div>
+                                        <div className={`text-right ${theme.cellBg} -my-0.5 py-0.5 ${usageColor(c2.usagePct, expectedPacePctForRow)}`}>
+                                          {c2.usagePct != null ? formatPercent(c2.usagePct, 0) : "-"}
+                                        </div>
                                         <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">{budgetLeft(ap, c2.amount)}</div>
                                         <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
-                                          {ap > 0 ? formatK(rem) : "-"}
+                                          {has ? formatK(rem) : "-"}
                                         </div>
                                         <div className="text-center">
-                                          {ap > 0 ? (
+                                          {has ? (
                                             <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
                                               {diff >= 0 ? "+" : ""}{formatK(diff)}
                                             </span>
@@ -843,27 +857,24 @@ export function BizUnitCard({
                                     </div>
                                     {showAnnualCols && (
                                       <>
-                                        <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
-                                          {c3.annualPlan != null ? formatK(c3.annualPlan) : "-"}
-                                        </div>
-                                        <div className={`text-right ${theme.cellBg} -my-0.5 py-0.5 ${usageColor(c3.usagePct, expectedPacePctForRow)}`}>
-                                          {c3.usagePct != null ? formatPercent(c3.usagePct, 0) : "-"}
-                                        </div>
                                         {(() => {
                                           const ap = c3.annualPlan ?? 0;
                                           const py = c3.planYtd ?? 0;
-                                          const rem = ap > 0 ? Math.max(0, ap - py) : 0;
-                                          const projected = c3.amount + rem;
-                                          const isOver = ap > 0 && projected > ap;
-                                          const diff = projected - ap;
+                                          const { has, rem, diff, isOver } = budgetCells(ap, py, c3.amount);
                                           return (
                                             <>
+                                              <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
+                                                {has ? formatK(ap) : "-"}
+                                              </div>
+                                              <div className={`text-right ${theme.cellBg} -my-0.5 py-0.5 ${usageColor(c3.usagePct, expectedPacePctForRow)}`}>
+                                                {c3.usagePct != null ? formatPercent(c3.usagePct, 0) : "-"}
+                                              </div>
                                               <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">{budgetLeft(ap, c3.amount)}</div>
                                               <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
-                                                {ap > 0 ? formatK(rem) : "-"}
+                                                {has ? formatK(rem) : "-"}
                                               </div>
                                               <div className="text-center">
-                                                {ap > 0 ? (
+                                                {has ? (
                                                   <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
                                                     {diff >= 0 ? "+" : ""}{formatK(diff)}
                                                   </span>

@@ -318,8 +318,8 @@ export function BrandCard({
             amountDiff,
             yoy,
             prevAmount,
-            annualPlan: annualPlan > 0 ? annualPlan : undefined,
-            planYtd: planYtd > 0 ? planYtd : undefined,
+            annualPlan,
+            planYtd,
             usagePct,
           };
         })
@@ -343,8 +343,8 @@ export function BrandCard({
           amountDiff,
           yoy,
           prevAmount,
-          annualPlan: annualPlan > 0 ? annualPlan : undefined,
-          planYtd: planYtd > 0 ? planYtd : undefined,
+          annualPlan,
+          planYtd,
           usagePct,
         };
       });
