@@ -5,9 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, ArrowDown, Plus, Minus } from "lucide-react";
 import { formatPercent, formatK } from "@/lib/utils";
-import { getCategoryDetail, getMonthlyTotal, getAggregatedData, resolvePlanType, type BizUnit, type Mode } from "@/lib/expenseData";
+import { getCategoryDetail, getMonthlyTotal, getAggregatedData, resolvePlanType, type BizUnit, type Mode, type PlanVariant } from "@/lib/expenseData";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { usePlanVariant } from "@/contexts/PlanVariantContext";
 import { t, getDisplayLabel } from "@/lib/translations";
 import React, { Fragment, useEffect, useState } from "react";
 
@@ -96,6 +95,8 @@ export interface BizUnitCardProps {
   month: number;
   mode: Mode;
   yearType?: 'actual' | 'plan';
+  /** 계획 소스. 예산 중간점검 탭에서만 "plan_adj" 가 내려온다 (다른 탭은 기존계획) */
+  planVariant?: PlanVariant;
   isCommon?: boolean;
   /** 헤더 브랜드명 자리를 사용자 정의 노드로 교체 (예: 드롭다운 셀렉터). 없으면 기본 텍스트 렌더 */
   titleControl?: React.ReactNode;
@@ -123,11 +124,11 @@ export function BizUnitCard({
   month,
   mode,
   yearType = 'actual',
+  planVariant = "plan",
   isCommon = false,
   titleControl,
 }: BizUnitCardProps) {
   const { lang } = useLanguage();
-  const { planVariant } = usePlanVariant();
   const isCorporate = businessUnit === "법인";
   // 계획 소스 — 원계획(plan) / 중간점검 조정후(plan_adj)
   const planType = resolvePlanType(year, planVariant);

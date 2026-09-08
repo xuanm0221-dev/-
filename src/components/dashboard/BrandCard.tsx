@@ -19,11 +19,11 @@ import {
   getAnnualData,
   resolvePlanType,
   type BizUnit,
+  type PlanVariant,
   type Mode,
 } from "@/lib/expenseData";
 
 import { BizUnitCard, type ExpenseDetail } from "./BizUnitCard";
-import { usePlanVariant } from "@/contexts/PlanVariantContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
 
@@ -37,6 +37,8 @@ interface BrandCardProps {
   brandName: string;
   icon: LucideIcon;
   yearType?: 'actual' | 'plan';
+  /** 계획 소스 — 예산 중간점검 탭에서만 "plan_adj" */
+  planVariant?: PlanVariant;
   /** 헤더 브랜드명 자리를 사용자 정의 노드로 교체 (예: 드롭다운 셀렉터) */
   titleControl?: React.ReactNode;
 }
@@ -86,10 +88,10 @@ export function BrandCard({
   brandName,
   icon: Icon,
   yearType = 'actual',
+  planVariant = "plan",
   titleControl,
 }: BrandCardProps) {
   const { lang } = useLanguage();
-  const { planVariant } = usePlanVariant();
   const isPlanYear = year === 2026 && yearType === 'plan';
   
   // 2026년(예산): 연간 데이터 사용
@@ -379,6 +381,7 @@ export function BrandCard({
       month={month}
       mode={mode}
       yearType={yearType}
+      planVariant={planVariant}
       isCommon={isCommon}
       titleControl={titleControl}
     />

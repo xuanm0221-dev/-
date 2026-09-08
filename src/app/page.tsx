@@ -134,6 +134,9 @@ export default function HomePage() {
   // 예산 중간점검은 연간계획 대비 YTD 진척 분석이라 당월·분기에는 의미가 없다.
   // 그 모드로 넘어가면 탭을 비활성화하고, 열려 있었으면 월별 추이로 내린다.
   const budgetTabEnabled = mode === "ytd";
+  // 조정후 예산은 "예산 중간점검" 화면의 개념이다. AI 보고서·심층분석·월별 추이·
+  // 광고비 효율은 기존계획으로 봐야 하므로, 좌측 카드도 그 탭에서만 조정후를 쓴다.
+  const cardPlanVariant = rightTab === "budget" ? planVariant : "plan";
   useEffect(() => {
     if (!budgetTabEnabled && rightTab === "budget") setRightTab("ai");
   }, [budgetTabEnabled, rightTab]);
@@ -336,6 +339,7 @@ export default function HomePage() {
                     month={month}
                     mode={mode}
                     yearType={yearOption.type}
+                    planVariant={cardPlanVariant}
                     brandColor={cfg.brandColor}
                     brandInitial={cfg.brandInitial}
                     brandName={t(cfg.brandName, lang)}
