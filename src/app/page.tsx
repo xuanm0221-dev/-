@@ -100,7 +100,8 @@ export default function HomePage() {
   const [selectedBrandBizUnit, setSelectedBrandBizUnit] = useState<BizUnit>("법인");
   // 우측 5-탭 스위처 선택 상태
   type RightTab = "budget" | "detail" | "adEfficiency" | "ai" | "deep";
-  const [rightTab, setRightTab] = useState<RightTab>("budget");
+  // 진입 시: 누적(YTD) · 최신월 · AI 보고서
+  const [rightTab, setRightTab] = useState<RightTab>("ai");
 
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
   const availableMonths = getAvailableMonths(yearOption.year, yearOption.type);
@@ -134,7 +135,7 @@ export default function HomePage() {
   // 그 모드로 넘어가면 탭을 비활성화하고, 열려 있었으면 월별 추이로 내린다.
   const budgetTabEnabled = mode === "ytd";
   useEffect(() => {
-    if (!budgetTabEnabled && rightTab === "budget") setRightTab("detail");
+    if (!budgetTabEnabled && rightTab === "budget") setRightTab("ai");
   }, [budgetTabEnabled, rightTab]);
 
   return (
@@ -183,7 +184,12 @@ export default function HomePage() {
                         key={it.key}
                         type="button"
                         disabled={it.disabled}
-                        onClick={() => !it.disabled && setMode(it.key)}
+                        onClick={() => {
+                          if (it.disabled) return;
+                          setMode(it.key);
+                          // 당월은 AI 보고서부터 본다
+                          if (it.key === "monthly") setRightTab("ai");
+                        }}
                         className={`px-3 py-1 text-[13px] font-semibold rounded-lg transition-all ${
                           active
                             ? "bg-white text-blue-600 shadow-sm shadow-slate-200/60"
