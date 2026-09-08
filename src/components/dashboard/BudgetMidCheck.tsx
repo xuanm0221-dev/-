@@ -15,13 +15,12 @@
  */
 
 import { Fragment, useMemo, useState } from "react";
-import { AlertCircle, TrendingDown, CheckCircle2, ChevronDown, ChevronRight, Pencil } from "lucide-react";
-import { getCategoryDetail, getMonthlyTotal, getAggregatedData, type BizUnit } from "@/lib/expenseData";
+import { AlertCircle, TrendingDown, CheckCircle2, ChevronDown, ChevronRight, X } from "lucide-react";
+import { getCategoryDetail, getMonthlyTotal, hasYearType, resolvePlanType, type BizUnit } from "@/lib/expenseData";
 import { formatK, formatPercent } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useBudgetAdjustments } from "@/contexts/BudgetAdjustmentContext";
-import { filterAdjustments } from "@/lib/budgetAdjustments";
-import { BudgetAdjustmentModal } from "./BudgetAdjustmentModal";
+import { usePlanVariant } from "@/contexts/PlanVariantContext";
+import { Dialog } from "@/components/ui/dialog";
 import { t } from "@/lib/translations";
 import { tLabel } from "@/lib/accountLabels";
 
@@ -206,40 +205,15 @@ const APPROVED_ADDITIONS: Record<string, ApprovedAddition> = {
 
 export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
   const { lang } = useLanguage();
-  const { adjustments, applyAdjustments, setApplyAdjustments } = useBudgetAdjustments();
-  const [adjustOpen, setAdjustOpen] = useState(false);
-  // 이 화면(연도·브랜드)에 걸린 수기조정 — 토글 노출 여부 판단용
-  const myAdjustments = filterAdjustments(adjustments, year, bizUnit);
-  const myAdjTotal = myAdjustments.reduce((sum, a) => sum + a.amount, 0);
-  // 대분류 드롭다운 후보 + 대분류별 항목명(중분류) 자동완성 후보
-  const { lv1Options, lv2OptionsByLv1 } = useMemo(() => {
-    try {
-      const lv1Set = new Set<string>();
-      const lv2Map = new Map<string, Set<string>>();
-      for (const r of getAggregatedData().category_detail) {
-        const l1 = (r.cost_lv1 ?? "").trim();
-        if (!l1) continue;
-        lv1Set.add(l1);
-        const l2 = (r.cost_lv2 ?? "").trim();
-        if (!l2) continue;
-        if (!lv2Map.has(l1)) lv2Map.set(l1, new Set());
-        lv2Map.get(l1)!.add(l2);
-      }
-      return {
-        lv1Options: Array.from(lv1Set).sort(),
-        lv2OptionsByLv1: Object.fromEntries(
-          Array.from(lv2Map.entries()).map(([k, v]) => [k, Array.from(v).sort()])
-        ) as Record<string, string[]>,
-      };
-    } catch {
-      return { lv1Options: [] as string[], lv2OptionsByLv1: {} as Record<string, string[]> };
-    }
-  }, []);
+  const { planVariant, setPlanVariant } = usePlanVariant();
+  // 계획 소스 — 원계획(plan) / 중간점검 조정후(plan_adj). 조정후 데이터가 있을 때만 토글 노출.
+  const planType = resolvePlanType(year, planVariant);
+  const hasAdjustedPlan = hasYearType(year, "plan_adj");
 
   const { overGroups, underGroups, onTrackGroups, expectedPace, totals, roas, overCount, underCount } = useMemo(() => {
     // 5개 소스: 연간 계획 · YTD 계획 · YTD 실적 · 전년 YTD 실적 · 전년 연간 실적(12월)
-    const planAnnualItems = getCategoryDetail(bizUnit, year, 12, "", "ytd", "plan");
-    const planYtdItems = getCategoryDetail(bizUnit, year, month, "", "ytd", "plan");
+    const planAnnualItems = getCategoryDetail(bizUnit, year, 12, "", "ytd", planType);
+    const planYtdItems = getCategoryDetail(bizUnit, year, month, "", "ytd", planType);
     const actualItems = getCategoryDetail(bizUnit, year, month, "", "ytd", "actual");
     const prevActualItems = getCategoryDetail(bizUnit, year - 1, month, "", "ytd", "actual");
     const prevAnnualActualItems = getCategoryDetail(bizUnit, year - 1, 12, "", "ytd", "actual");
@@ -326,32 +300,6 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       if (EXCLUDED_LV1.has(a.cost_lv1 || "")) continue;
       const k = rowKey(a);
       prevAnnualActualMap.set(k, (prevAnnualActualMap.get(k) || 0) + (a.amount || 0));
-    }
-
-    // 예산 수기조정: 대분류 단위 가감액을 해당 대분류의 계획 행들에 금액 비례로 안분한다.
-    // (입력 단위가 대분류라 특정 리프에 귀속시킬 근거가 없어 비례 배분 — 총액은 정확히 일치)
-    if (applyAdjustments) {
-      for (const a of filterAdjustments(adjustments, year, bizUnit)) {
-        if (!a.amount) continue;
-        const keys = Array.from(infoMap.entries())
-          .filter(([, info]) => info.lv1 === a.lv1 && (a.bizUnit === "법인" || !info.bu || info.bu === a.bizUnit))
-          .map(([k]) => k);
-        const base = keys.reduce((sum, k) => sum + (planAnnualMap.get(k) || 0), 0);
-        if (keys.length > 0 && base > 0) {
-          let left = a.amount;
-          keys.forEach((k, idx) => {
-            const cur = planAnnualMap.get(k) || 0;
-            const share = idx === keys.length - 1 ? left : Math.round((a.amount * cur) / base);
-            left -= share;
-            planAnnualMap.set(k, cur + share);
-          });
-        } else {
-          // 계획 행이 아직 없는 신규 대분류 → 단독 행으로 편입
-          const k = `${a.bizUnit}|${a.lv1}||`;
-          planAnnualMap.set(k, (planAnnualMap.get(k) || 0) + a.amount);
-          if (!infoMap.has(k)) infoMap.set(k, { bu: a.bizUnit === "법인" ? "" : a.bizUnit, lv1: a.lv1, lv2: "", lv3: "" });
-        }
-      }
     }
 
     const expectedPace = (month / 12) * 100;
@@ -557,89 +505,59 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       overCount: overItems.length,
       underCount: underItems.length,
     };
-  }, [bizUnit, year, month, adjustments, applyAdjustments, lang]);
+  }, [bizUnit, year, month, planType, lang]);
 
-  // 탭: 핵심 결론(Overview + KPI) vs 상세 분석(예산초과/감축 · 정상 진행 표)
-  const [tab, setTab] = useState<"overview" | "analysis">("overview");
+  // 핵심 결론은 항상 인라인, 상세 분석(근거)은 모달로 띄운다
+  const [analysisOpen, setAnalysisOpen] = useState(false);
 
   return (
     <div className="space-y-3">
       {/* 탭 스위처 + 우측 제목·기간 (한 줄, 외부 카드 없이 직접 노출) */}
       <div>
         <div className="flex items-center gap-3 flex-wrap mb-2">
-          <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden shadow-sm">
-            <button
-              type="button"
-              onClick={() => setTab("overview")}
-              className={`px-4 py-1.5 text-[12px] font-semibold transition-colors ${
-                tab === "overview"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              📢 {t("핵심 결론 & 액션", lang)}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab("analysis")}
-              className={`px-4 py-1.5 text-[12px] font-semibold border-l border-slate-300 transition-colors ${
-                tab === "analysis"
-                  ? "bg-slate-900 text-white"
-                  : "bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              🔍 {t("상세 분석 (근거)", lang)}
-            </button>
-          </div>
+          {/* 계획 소스 — 기존계획 / 중간점검 조정후 (탭 스위처 좌측) */}
+          {hasAdjustedPlan && (
+            <div className="inline-flex rounded-md border border-slate-300 overflow-hidden flex-shrink-0" role="group">
+              <button
+                type="button"
+                onClick={() => setPlanVariant("plan")}
+                className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  planVariant === "plan" ? "bg-sky-500 text-white" : "bg-white text-slate-600 hover:bg-sky-50"
+                }`}
+              >
+                {t("기존계획", lang)}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanVariant("plan_adj")}
+                className={`px-2.5 py-1 text-[11px] font-semibold border-l border-slate-300 transition-colors ${
+                  planVariant === "plan_adj" ? "bg-sky-500 text-white" : "bg-white text-slate-600 hover:bg-sky-50"
+                }`}
+              >
+                {t("조정 후", lang)}
+              </button>
+            </div>
+          )}
+          {/* 제목 — 인라인으로 보여지는 내용이 무엇인지까지 제목에 담는다 (선택 대상이 아니므로 탭 아님) */}
           <div className="flex items-baseline gap-2 min-w-0">
             <h2 className="text-[16px] font-bold tracking-tight text-slate-900 truncate">
-              {t(bizUnit, lang)} · {t("예산 중간점검", lang)}
+              {t(bizUnit, lang)} · {t("예산 중간점검", lang)} ({t("핵심 결론 & 액션", lang)})
             </h2>
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
               {year}{t("년", lang)} {month}{t("월", lang)} YTD · {t("예상 진척률", lang)} <b className="text-slate-700">{expectedPace.toFixed(0)}%</b>
             </span>
           </div>
-          {/* 예산 수기조정 — 원계획/조정후 토글 + 입력 버튼 */}
-          <div className="flex items-center gap-2 flex-shrink-0 ml-auto">
-            {myAdjustments.length > 0 && (
-              <div className="inline-flex rounded-md border border-slate-300 overflow-hidden" role="group">
-                <button
-                  type="button"
-                  onClick={() => setApplyAdjustments(false)}
-                  className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                    !applyAdjustments ? "bg-slate-700 text-white" : "bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  {t("원 계획", lang)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setApplyAdjustments(true)}
-                  className={`px-2.5 py-1 text-[11px] font-semibold border-l border-slate-300 transition-colors ${
-                    applyAdjustments ? "bg-amber-500 text-white" : "bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                  title={`${t("수기조정", lang)} ${myAdjTotal >= 0 ? "+" : ""}${formatK(myAdjTotal)}`}
-                >
-                  {t("조정 후", lang)}
-                  <span className="ml-1 tabular-nums font-bold">
-                    {myAdjTotal >= 0 ? "+" : ""}{formatK(myAdjTotal)}
-                  </span>
-                </button>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setAdjustOpen(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-amber-400 bg-amber-50 text-amber-800 text-[11px] font-semibold hover:bg-amber-100 transition-colors whitespace-nowrap"
-            >
-              <Pencil className="w-3 h-3" />
-              {t("예산 수기조정", lang)}
-            </button>
-          </div>
+          {/* 상세 분석 — 모달 여는 단일 버튼, 우측 정렬 */}
+          <button
+            type="button"
+            onClick={() => setAnalysisOpen(true)}
+            className="ml-auto flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-sky-50 hover:border-sky-400 hover:text-sky-700 transition-colors"
+          >
+            🔍 {t("상세 분석 (근거)", lang)}
+          </button>
         </div>
-        {tab === "overview" && (<>
-        {/* KPI 카드 6개 (탭 바로 아래, Executive Overview 위) — 순액증감 좌측 첫번째 */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mb-3 items-stretch">
+        {/* KPI 카드 4개 (탭 바로 아래, Executive Overview 위) — 순액증감 좌측 첫번째 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 items-stretch">
           {/* 순액 증감 카드 (첫번째) — 컴팩트 버전 */}
           {(() => {
             const net = totals.reviewAmount - totals.underAmount;
@@ -685,29 +603,10 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
             emphasize
           />
           <SummaryBox
-            label={t("사용 확정 (승인 완료)", lang)}
-            value={`+${formatK(totals.approvedAmount)}`}
-            sub={(() => {
-              const parts: string[] = [];
-              const ad = totals.approvedByLv1.get("광고비");
-              const mtg = totals.approvedByLv1.get("수주회");
-              if (ad && ad > 0) parts.push(`${t("광고비", lang)} +${formatK(ad)}`);
-              if (mtg && mtg > 0) parts.push(`${t("수주회", lang)} +${formatK(mtg)}`);
-              return parts.length ? parts.join(" · ") : t("승인 항목 없음", lang);
-            })()}
-            tone="emerald"
-          />
-          <SummaryBox
-            label={t("총 예산 (원 계획)", lang)}
+            label={planVariant === "plan_adj" ? t("총 예산 (예산 조정후)", lang) : t("총 예산 (기존계획)", lang)}
             value={formatK(totals.plan)}
             sub={`${t("실적", lang)} ${formatK(totals.actual)} · ${t("진척률", lang)} ${totals.plan > 0 ? formatPercent((totals.actual / totals.plan) * 100, 0) : "-"}`}
-            tone="slate"
-          />
-          <SummaryBox
-            label={t("조정 후 총예산", lang)}
-            value={formatK(totals.plan + totals.overAmount - totals.underAmount)}
-            sub={`${t("원 계획 대비", lang)} ${totals.plan > 0 ? formatPercent(((totals.plan + totals.overAmount - totals.underAmount) / totals.plan) * 100, 0) : "-"}`}
-            tone="emerald"
+            tone={planVariant === "plan_adj" ? "emerald" : "slate"}
           />
         </div>
         {/* Executive Overview — 항목별 실행 액션 도출 (CEO 보고용) */}
@@ -1071,10 +970,30 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
             </div>
           );
         })()}
-        </>)}
       </div>
 
-      {tab === "analysis" && (<>
+      <Dialog
+        open={analysisOpen}
+        onOpenChange={setAnalysisOpen}
+        contentClassName="w-[90vw] max-w-[90vw] h-[90vh] max-h-[90vh] overflow-y-auto"
+      >
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5">
+          <h3 className="text-[14px] font-bold text-slate-900">
+            🔍 {t("상세 분석 (근거)", lang)}
+            <span className="ml-2 text-[11px] font-normal text-slate-500">
+              {t(bizUnit, lang)} · {year}{t("년", lang)} {month}{t("월", lang)} YTD
+            </span>
+          </h3>
+          <button
+            type="button"
+            onClick={() => setAnalysisOpen(false)}
+            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+            aria-label={t("닫기", lang)}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-4 space-y-3">
         {/* 가이드 노트 (상세 분석 상단) — 판정 기준 · 승인 완료 항목 */}
         <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-2">
           {/* 좌: 판정 기준 */}
@@ -1132,16 +1051,8 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
           />
           <div />
         </div>
-      </>)}
-      <BudgetAdjustmentModal
-        open={adjustOpen}
-        onClose={() => setAdjustOpen(false)}
-        year={year}
-        defaultBizUnit={bizUnit}
-        lv1Options={lv1Options}
-        lv2OptionsByLv1={lv2OptionsByLv1}
-        lang={lang as Lang}
-      />
+        </div>
+      </Dialog>
     </div>
   );
 }

@@ -4,6 +4,11 @@ export type BizUnit = "법인" | "MLB" | "KIDS" | "DISCOVERY" | "공통";
 let _data: AggregatedData | null = null;
 
 /** 집계 데이터 설정 (ExpenseDataProvider에서 API fetch 후 호출) */
+/** 데이터 상의 연도 타입. plan_adj = 예산 중간점검 "조정후 예산" 기준 계획 */
+export type YearType = 'actual' | 'plan' | 'plan_adj';
+/** 계획 소스 선택 — 원계획 | 중간점검 조정후 */
+export type PlanVariant = 'plan' | 'plan_adj';
+
 export function setExpenseData(d: AggregatedData): void {
   _data = d;
 }
@@ -58,7 +63,7 @@ export interface MonthlyAggregated {
   amount: number;
   headcount: number;
   sales: number;
-  year_type?: 'actual' | 'plan';  // 실적/예산 구분
+  year_type?: YearType;  // 실적/예산 구분
   biz_unit_cn?: string;
   cost_lv1_cn?: string;
 }
@@ -71,7 +76,7 @@ export interface MonthlyTotal {
   amount: number;
   headcount: number;
   sales: number;
-  year_type?: 'actual' | 'plan';  // 실적/예산 구분
+  year_type?: YearType;  // 실적/예산 구분
   biz_unit_cn?: string;
 }
 
@@ -85,7 +90,7 @@ export interface CategoryDetail {
   cost_lv3: string;
   amount: number;
   headcount?: number;  // 사업부(소분류) 기준 인원수 (선택적)
-  year_type?: 'actual' | 'plan';  // 실적/예산 구분
+  year_type?: YearType;  // 실적/예산 구분
   biz_unit_cn?: string;
   cost_lv1_cn?: string;
   cost_lv2_cn?: string;
@@ -99,7 +104,7 @@ export interface AnnualData {
   cost_lv2: string;
   cost_lv3: string;
   annual_amount: number;
-  year_type?: 'actual' | 'plan';  // 실적/예산 구분
+  year_type?: YearType;  // 실적/예산 구분
   biz_unit_cn?: string;
   cost_lv1_cn?: string;
   cost_lv2_cn?: string;
@@ -127,7 +132,7 @@ export function getMonthlyTotal(
   year: number,
   month: number,
   mode: Mode = "monthly",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): MonthlyTotal | null {
   // 법인인 경우 4개 사업부 raw 데이터 직접 합계 (재귀 호출 제거로 경영지원 중복 방지)
   if (bizUnit === "법인") {
@@ -306,13 +311,13 @@ export function getPreviousYearTotal(
   year: number,
   month: number,
   mode: Mode = "monthly",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): MonthlyTotal | null {
   return getMonthlyTotal(bizUnit, year - 1, month, mode, yearType);
 }
 
 /** 해당 연도 1~12월 인원수 합계 (인당 비용 계산용: 연간 비용 합계 / 연간 인원수 합계) */
-export function getAnnualHeadcountSum(bizUnit: BizUnit, year: number, yearType: 'actual' | 'plan' = 'actual'): number {
+export function getAnnualHeadcountSum(bizUnit: BizUnit, year: number, yearType: YearType = 'actual'): number {
   let sum = 0;
   for (let m = 1; m <= 12; m++) {
     const t = getMonthlyTotal(bizUnit, year, m, "monthly", yearType);
@@ -326,7 +331,7 @@ export function getYTDHeadcountSum(
   bizUnit: BizUnit,
   year: number,
   month: number,
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): number {
   let sum = 0;
   for (let m = 1; m <= month; m++) {
@@ -341,7 +346,7 @@ export function getMonthlyAggregatedByCategory(
   year: number,
   month: number,
   mode: Mode = "monthly",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): MonthlyAggregated[] {
   const data = getData();
   // 법인인 경우 4개 사업부 raw 데이터 직접 집계 (재귀 호출 제거로 경영지원 중복 방지)
@@ -463,7 +468,7 @@ export function getAnnualData(
   costLv1: string = "",
   costLv2: string = "",
   costLv3: string = "",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): AnnualData[] {
   const data = getData();
   if (!data.annual_data) {
@@ -541,7 +546,7 @@ export function getCategoryDetail(
   month: number,
   costLv1: string = "",
   mode: Mode = "monthly",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): CategoryDetail[] {
   const data = getData();
   // 법인인 경우 4개 사업부 raw 데이터 직접 반환 (재귀 호출 제거로 경영지원 중복 방지)
@@ -634,7 +639,7 @@ export function getMonthlyTrend(
   bizUnit: BizUnit,
   year: number,
   mode: Mode = "monthly",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): MonthlyTotal[] {
   const data = getData();
   // 법인인 경우 4개 사업부 합계 계산 (매출은 공통 제외 — 공통의 sales는 이미 브랜드 매출 합계라 이중집계 방지)
@@ -698,7 +703,7 @@ export function getMonthlyStackedData(
   bizUnit: BizUnit,
   year: number,
   mode: Mode = "monthly",
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): {
   data: {
     month: number;
@@ -832,12 +837,15 @@ export function getAvailableYearOptions(): YearOption[] {
   
   for (const year of metadata.years) {
     const types = yearTypes[year.toString()] || ['actual'];
-    
+
     for (const type of types) {
-      const display = type === 'plan' 
-        ? `${year}년(예산)` 
+      // plan_adj 는 연도 선택지가 아니라 계획 소스(원계획/조정후) 토글로만 쓴다
+      if (type === 'plan_adj') continue;
+
+      const display = type === 'plan'
+        ? `${year}년(예산)`
         : `${year}년(실적)`;
-      
+
       options.push({ year, type: type as 'actual' | 'plan', display });
     }
   }
@@ -849,13 +857,28 @@ export function getAvailableYearOptions(): YearOption[] {
   });
 }
 
+/** 해당 연도에 그 year_type 데이터가 실제로 있는지 */
+export function hasYearType(year: number, yearType: YearType): boolean {
+  const types = getData().metadata.year_types?.[year.toString()];
+  return Array.isArray(types) && types.includes(yearType);
+}
+
+/**
+ * 화면이 고른 계획 소스를 실제 존재하는 것으로 확정한다.
+ * 중간점검 CSV 를 아직 전처리에 넣지 않았으면 조용히 원계획으로 되돌린다.
+ */
+export function resolvePlanType(year: number, preferred: PlanVariant): PlanVariant {
+  if (preferred === 'plan_adj' && hasYearType(year, 'plan_adj')) return 'plan_adj';
+  return 'plan';
+}
+
 export function getAvailableYears(): number[] {
   const data = getData();
   return data.metadata.years.sort((a, b) => b - a);
 }
 
 // 해당 연도에서 최소 한 달이라도 amount>0인 분기 반환 (진행 중인 분기도 활성)
-export function getAvailableQuarters(year: number, yearType: 'actual' | 'plan' = 'actual'): (1 | 2 | 3 | 4)[] {
+export function getAvailableQuarters(year: number, yearType: YearType = 'actual'): (1 | 2 | 3 | 4)[] {
   const months = new Set(getAvailableMonths(year, yearType));
   const result: (1 | 2 | 3 | 4)[] = [];
   const check = (q: 1 | 2 | 3 | 4, ms: number[]) => {
@@ -868,7 +891,7 @@ export function getAvailableQuarters(year: number, yearType: 'actual' | 'plan' =
   return result;
 }
 
-export function getAvailableMonths(year: number, yearType: 'actual' | 'plan' = 'actual'): number[] {
+export function getAvailableMonths(year: number, yearType: YearType = 'actual'): number[] {
   const data = getData();
   // 월별 amount 합계를 계산해 0이 아닌 월만 "가용"으로 간주
   // (전처리 시 미래 월에도 0 행이 생성되므로 단순 존재 여부로는 부족)
@@ -900,7 +923,7 @@ export interface AdSalesDataPoint {
 export function getAdSalesAnalysisData(
   bizUnit: BizUnit,
   year: number,
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): AdSalesDataPoint[] {
   // 당해년도 및 전년도 월별 데이터 가져오기
   const currentYearData = getMonthlyTrend(bizUnit, year, "monthly", yearType);
@@ -968,7 +991,7 @@ export interface AdSalesByChannelItem {
 export function getAdSalesByChannel(
   bizUnit: BizUnit,
   year: number,
-  yearType: 'actual' | 'plan' = 'actual'
+  yearType: YearType = 'actual'
 ): AdSalesByChannelItem[] {
   const monthlyTrend = getMonthlyTrend(bizUnit, year, "monthly", yearType);
   const prevYearTrend = getMonthlyTrend(bizUnit, year - 1, "monthly", yearType);

@@ -68,6 +68,7 @@ import { calculateYOY } from "@/lib/utils";
 import { getAnnualData, type BizUnit } from "@/lib/expenseData";
 import { getLatestYearOption, getLatestMonth } from "@/lib/dashboardDefaults";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { usePlanVariant } from "@/contexts/PlanVariantContext";
 import { t } from "@/lib/translations";
 import { LanguageToggle } from "@/components/dashboard/LanguageToggle";
 
@@ -81,6 +82,7 @@ const MAIN_BRAND_CONFIG = [
 
 export default function HomePage() {
   const { lang } = useLanguage();
+  const { planVariant } = usePlanVariant();
   const availableYearOptions = getAvailableYearOptions();
 
   // 진입 시 항상 최신 실적 연도 + 가장 최근 가용 월
@@ -127,6 +129,13 @@ export default function HomePage() {
       setMonth(availableMonths[availableMonths.length - 1]);
     }
   }, [yearOption, availableMonths, month, isPlanYear, mode]);
+
+  // 예산 중간점검은 연간계획 대비 YTD 진척 분석이라 당월·분기에는 의미가 없다.
+  // 그 모드로 넘어가면 탭을 비활성화하고, 열려 있었으면 월별 추이로 내린다.
+  const budgetTabEnabled = mode === "ytd";
+  useEffect(() => {
+    if (!budgetTabEnabled && rightTab === "budget") setRightTab("detail");
+  }, [budgetTabEnabled, rightTab]);
 
   return (
     <>
@@ -235,21 +244,26 @@ export default function HomePage() {
               <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden shadow-sm flex-shrink-0 flex-wrap">
                 {(() => {
                   const tabs = [
-                    { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" /> },
+                    { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" />, disabled: !budgetTabEnabled },
                     { key: "detail",       label: t("월별 비용 추이", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
                     { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
                     { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
                     { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
-                  ] as { key: RightTab; label: string; icon: React.ReactNode }[];
+                  ] as { key: RightTab; label: string; icon: React.ReactNode; disabled?: boolean }[];
                   return tabs.map((tab, idx) => {
                     const active = rightTab === tab.key;
+                    const disabled = !!tab.disabled;
                     return (
                       <button
                         key={tab.key}
                         type="button"
-                        onClick={() => setRightTab(tab.key)}
+                        disabled={disabled}
+                        title={disabled ? t("누적(YTD)에서만 확인할 수 있습니다", lang) : undefined}
+                        onClick={() => !disabled && setRightTab(tab.key)}
                         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold transition-colors ${idx > 0 ? "border-l border-slate-300" : ""} ${
-                          active
+                          disabled
+                            ? "bg-slate-50 text-slate-300 cursor-not-allowed"
+                            : active
                             ? "bg-slate-900 text-white"
                             : "bg-white text-slate-600 hover:bg-slate-50"
                         }`}
@@ -293,11 +307,15 @@ export default function HomePage() {
         {/* HTML 다운로드 대상: 사업부 카드 + 상세표 (드롭다운으로 사업부 전환) */}
         <div ref={isPlanYear ? homeExportRef : undefined}>
           {(() => {
-            // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭 (YTD 10컬럼 vs 당월/분기 5컬럼).
+            // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭.
+            // YTD 는 10컬럼, 조정후 뷰는 "기존대비" 가 붙어 11컬럼 — 그만큼 더 줘야
+            // 대분류(minmax(0,140px))가 안 눌리고 끝까지 보인다. 당월/분기는 5컬럼.
             // flex-none으로 카드가 자연 폭을 지키고, 남는 공간은 우측 panel이 흡수.
-            const cardWidthClass = mode === "ytd"
-              ? "xl:flex-none xl:w-[790px]"
-              : "xl:flex-none xl:w-[470px]";
+            const cardWidthClass = mode !== "ytd"
+              ? "xl:flex-none xl:w-[470px]"
+              : planVariant === "plan_adj"
+                ? "xl:flex-none xl:w-[860px]"
+                : "xl:flex-none xl:w-[790px]";
             return (
           <div className="flex flex-col xl:flex-row gap-5 items-start mb-8">
             {/* 좌: 사업부 선택 카드 (모드에 따라 폭 자동 조정) */}

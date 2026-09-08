@@ -17,13 +17,13 @@ import {
   getAnnualHeadcountSum,
   getYTDHeadcountSum,
   getAnnualData,
+  resolvePlanType,
   type BizUnit,
   type Mode,
 } from "@/lib/expenseData";
 
 import { BizUnitCard, type ExpenseDetail } from "./BizUnitCard";
-import { useBudgetAdjustments } from "@/contexts/BudgetAdjustmentContext";
-import { adjustmentByLv1 } from "@/lib/budgetAdjustments";
+import { usePlanVariant } from "@/contexts/PlanVariantContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { t } from "@/lib/translations";
 
@@ -89,7 +89,7 @@ export function BrandCard({
   titleControl,
 }: BrandCardProps) {
   const { lang } = useLanguage();
-  const { adjustments, applyAdjustments } = useBudgetAdjustments();
+  const { planVariant } = usePlanVariant();
   const isPlanYear = year === 2026 && yearType === 'plan';
   
   // 2026년(예산): 연간 데이터 사용
@@ -148,21 +148,20 @@ export function BrandCard({
     prevCategoryData.map((item) => [item.cost_lv1, item])
   );
 
-  // 연간 계획 (YTD 뷰용) — 2026년 plan × 12월 YTD 기준
+  // 계획 소스 — 원계획(plan) / 중간점검 조정후(plan_adj). 데이터가 없으면 원계획으로 폴백.
+  const planType = resolvePlanType(year, planVariant);
+  // 연간 계획 (YTD 뷰용) — 2026년 계획 × 12월 YTD 기준
   const annualPlanData = yearType === 'actual'
-    ? getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", "plan")
+    ? getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", planType)
     : [];
   const annualPlanMap = new Map(annualPlanData.map((item) => [item.cost_lv1, item.amount]));
-  // 예산 수기조정: "조정 후" 뷰일 때만 대분류별 가감액을 연간계획에 더한다.
-  // (원 계획 뷰에서는 CSV 계획 그대로 — 두 뷰를 토글로 비교)
-  if (applyAdjustments && yearType === "actual") {
-    for (const [lv1, delta] of adjustmentByLv1(adjustments, year, bizUnit)) {
-      annualPlanMap.set(lv1, (annualPlanMap.get(lv1) ?? 0) + delta);
-    }
-  }
+  // 조정후 뷰일 때만 — 기존계획(원 plan) 연간계획. 증감 컬럼 산출용
+  const basePlanMap = yearType === 'actual' && planType === 'plan_adj'
+    ? new Map(getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", "plan").map((item) => [item.cost_lv1, item.amount]))
+    : new Map<string, number>();
   // YTD 시점 계획 — 해당 월까지 계획 누적
   const planYtdData = yearType === 'actual'
-    ? getMonthlyAggregatedByCategory(bizUnit, year, month, "ytd", "plan")
+    ? getMonthlyAggregatedByCategory(bizUnit, year, month, "ytd", planType)
     : [];
   const planYtdMap = new Map(planYtdData.map((item) => [item.cost_lv1, item.amount]));
 
@@ -321,6 +320,7 @@ export function BrandCard({
             annualPlan,
             planYtd,
             usagePct,
+            basePlan: basePlanMap.get(categoryName),
           };
         })
     : EXPENSE_DETAIL_ORDER.filter((categoryName) => {
@@ -346,6 +346,7 @@ export function BrandCard({
           annualPlan,
           planYtd,
           usagePct,
+          basePlan: basePlanMap.get(categoryName),
         };
       });
 

@@ -20,6 +20,12 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # 분석 대상 사업부 (MLB, KIDS, DISCOVERY, 공통)
 TARGET_BIZ_UNITS = ["MLB", "KIDS", "DISCOVERY", "공통"]
 
+# 예산 중간점검 — "조정후 예산"(연간 확정치)으로 만드는 조정 계획
+PLAN_ADJ_FILE = "2026년비용_plan_중간점검.csv"
+PLAN_ADJ_YEAR = 2026
+PLAN_ADJ_COL = "조정후 예산"
+PLAN_ADJ_TYPE = "plan_adj"
+
 
 def parse_month_column(col: str, year: int = None) -> tuple[int, int] | None:
     """월 컬럼명(예: '1월', '2월', '24년1월', 'Jan-24', '2024-01') → (year, month)로 파싱"""
@@ -464,7 +470,133 @@ def load_expense_data() -> pd.DataFrame:
         raise ValueError("비용 데이터를 로드할 수 없습니다.")
 
     expense_df = pd.concat(all_data, ignore_index=True)
+    expense_df = append_plan_adj(expense_df)
     return expense_df
+
+
+def _clean_amount(series: pd.Series) -> pd.Series:
+    """'1,234 ' 같은 문자열을 숫자로. 빈칸/문자는 0."""
+    s = series.fillna("").astype(str)
+    s = s.str.replace(",", "", regex=False).str.replace(" ", "", regex=False).str.strip()
+    return pd.to_numeric(s, errors="coerce").fillna(0.0)
+
+
+def append_plan_adj(expense_df: pd.DataFrame) -> pd.DataFrame:
+    """예산 중간점검의 '조정후 예산'(연간 확정치)으로 plan_adj 계획을 만들어 덧붙인다.
+
+    중간점검 CSV 에는 월 컬럼이 없고 연간 값만 있으므로 월 배분이 필요한데,
+    분석을 연간 기준으로만 하므로 변동액은 전부 12월에 몰아 넣는다.
+      - 1~11월 : 원계획(plan) 월별 금액 그대로
+      - 12월   : 조정후 예산 − 원계획 1~11월 합
+    이렇게 하면 연간 합계가 '조정후 예산' 과 정확히 일치한다.
+    원계획에 없는 신규 항목은 12월에만 금액이 잡힌 행으로 새로 만든다.
+    """
+    filepath = os.path.join(CSV_BASE_PATH, PLAN_ADJ_FILE)
+    if not os.path.exists(filepath):
+        print(f"   - {PLAN_ADJ_FILE} 없음 → plan_adj 생략 (원계획만 사용)")
+        return expense_df
+
+    raw = pd.read_csv(filepath, encoding="utf-8-sig")
+    if PLAN_ADJ_COL not in raw.columns:
+        print(f"   - 경고: {PLAN_ADJ_FILE} 에 '{PLAN_ADJ_COL}' 컬럼이 없어 plan_adj 를 만들지 못했습니다.")
+        return expense_df
+
+    key_cols = ["사업부구분", "대분류", "중분류", "소분류"]
+    cn_cols = ["사업부구분(중국어)", "대분류(중국어)", "중분류(중국어)", "소분류(중국어)"]
+    for c in key_cols:
+        raw[c] = raw[c].fillna("").astype(str).str.strip()
+    for c in cn_cols:
+        if c not in raw.columns:
+            raw[c] = ""
+        raw[c] = raw[c].fillna("").astype(str).str.strip()
+    raw["_after"] = _clean_amount(raw[PLAN_ADJ_COL])
+
+    # 사업부구분이 비어 있는 꼬리행(검산·메모)은 제외
+    raw = raw[raw["사업부구분"] != ""]
+    after_by_key = raw.groupby(key_cols, as_index=False).agg(
+        _after=("_after", "sum"),
+        biz_unit_cn=("사업부구분(중국어)", "first"),
+        cost_lv1_cn=("대분류(중국어)", "first"),
+        cost_lv2_cn=("중분류(중국어)", "first"),
+        cost_lv3_cn=("소분류(중국어)", "first"),
+    )
+    after_map = {
+        (r["사업부구분"], r["대분류"], r["중분류"], r["소분류"]): r["_after"]
+        for _, r in after_by_key.iterrows()
+    }
+
+    base = expense_df[
+        (expense_df["year"] == PLAN_ADJ_YEAR) & (expense_df["year_type"] == "plan")
+    ].copy()
+    if base.empty:
+        print(f"   - {PLAN_ADJ_YEAR}년 원계획(plan) 이 없어 plan_adj 를 만들지 못했습니다.")
+        return expense_df
+
+    base["year_type"] = PLAN_ADJ_TYPE
+    for c in ["cost_lv2", "cost_lv3"]:
+        base[c] = base[c].fillna("").astype(str).str.strip()
+    base["biz_unit"] = base["biz_unit"].astype(str).str.strip()
+    base["cost_lv1"] = base["cost_lv1"].astype(str).str.strip()
+    keys = list(zip(base["biz_unit"], base["cost_lv1"], base["cost_lv2"], base["cost_lv3"]))
+    base["_key"] = keys
+
+    # 1~11월 합 (키 단위)
+    sum_1_11 = base[base["month"] <= 11].groupby("_key")["amount"].sum()
+
+    # 12월 = 조정후 예산 − 1~11월 합. 같은 키가 여러 행이면 첫 행에 몰아넣고 나머지는 0.
+    matched, unmatched = 0, []
+    dec = base[base["month"] == 12]
+    for key, grp in dec.groupby("_key", sort=False):
+        after = after_map.get(key)
+        if after is None:
+            unmatched.append(key)
+            continue
+        idxs = list(grp.index)
+        base.loc[idxs, "amount"] = 0.0
+        base.loc[idxs[0], "amount"] = after - float(sum_1_11.get(key, 0.0))
+        matched += 1
+
+    # 원계획에 없는 신규 항목 → 12월에만 금액이 있는 행으로 추가
+    base_keys = set(base["_key"])
+    new_rows = []
+    for _, r in after_by_key.iterrows():
+        key = (r["사업부구분"], r["대분류"], r["중분류"], r["소분류"])
+        if key in base_keys:
+            continue
+        for m in range(1, 13):
+            new_rows.append({
+                "year": PLAN_ADJ_YEAR,
+                "month": m,
+                "yyyymm": f"{PLAN_ADJ_YEAR}{m:02d}",
+                "biz_unit": key[0],
+                "cost_lv1": key[1],
+                "cost_lv2": key[2],
+                "cost_lv3": key[3],
+                "amount": float(r["_after"]) if m == 12 else 0.0,
+                "year_type": PLAN_ADJ_TYPE,
+                "biz_unit_cn": r["biz_unit_cn"],
+                "cost_lv1_cn": r["cost_lv1_cn"],
+                "cost_lv2_cn": r["cost_lv2_cn"],
+                "cost_lv3_cn": r["cost_lv3_cn"],
+            })
+
+    base = base.drop(columns=["_key"])
+    parts = [expense_df, base]
+    if new_rows:
+        parts.append(pd.DataFrame(new_rows).reindex(columns=base.columns))
+
+    out = pd.concat(parts, ignore_index=True)
+    plan_total = expense_df.loc[
+        (expense_df["year"] == PLAN_ADJ_YEAR) & (expense_df["year_type"] == "plan"), "amount"
+    ].sum()
+    adj_total = out.loc[
+        (out["year"] == PLAN_ADJ_YEAR) & (out["year_type"] == PLAN_ADJ_TYPE), "amount"
+    ].sum()
+    print(f"   - plan_adj 생성: 매칭 {matched}개 키, 신규 {len(new_rows)//12}개 키")
+    if unmatched:
+        print(f"     경고: 중간점검에 없는 원계획 키 {len(unmatched)}개는 원계획 값 유지 → {unmatched[:5]}")
+    print(f"     원계획 {plan_total:,.0f} → 조정후 {adj_total:,.0f} ({adj_total - plan_total:+,.0f})")
+    return out
 
 
 def get_annual_data() -> pd.DataFrame | None:
