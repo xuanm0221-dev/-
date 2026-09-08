@@ -244,11 +244,11 @@ export default function HomePage() {
               <div className="inline-flex rounded-lg border border-slate-300 overflow-hidden shadow-sm flex-shrink-0 flex-wrap">
                 {(() => {
                   const tabs = [
-                    { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" />, disabled: !budgetTabEnabled },
-                    { key: "detail",       label: t("월별 비용 추이", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
-                    { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
                     { key: "ai",           label: t("AI 보고서", lang),          icon: <Bot className="w-3.5 h-3.5" /> },
                     { key: "deep",         label: t("심층분석", lang),           icon: <Microscope className="w-3.5 h-3.5" /> },
+                    { key: "detail",       label: t("월별 비용 추이", lang), icon: <TableIcon className="w-3.5 h-3.5" /> },
+                    { key: "adEfficiency", label: t("광고비 효율 분석", lang),   icon: <BarChart2 className="w-3.5 h-3.5" /> },
+                    { key: "budget",       label: t("예산 중간점검", lang),      icon: <Scale className="w-3.5 h-3.5" />, disabled: !budgetTabEnabled },
                   ] as { key: RightTab; label: string; icon: React.ReactNode; disabled?: boolean }[];
                   return tabs.map((tab, idx) => {
                     const active = rightTab === tab.key;
@@ -307,15 +307,13 @@ export default function HomePage() {
         {/* HTML 다운로드 대상: 사업부 카드 + 상세표 (드롭다운으로 사업부 전환) */}
         <div ref={isPlanYear ? homeExportRef : undefined}>
           {(() => {
-            // 카드 폭: 그리드 컬럼 합계에 맞춰 고정 폭.
-            // YTD 는 10컬럼, 조정후 뷰는 "기존대비" 가 붙어 11컬럼 — 그만큼 더 줘야
-            // 대분류(minmax(0,140px))가 안 눌리고 끝까지 보인다. 당월/분기는 5컬럼.
+            // 카드 폭: YTD 는 기존계획/조정후 모두 790px 로 통일 (토글해도 레이아웃이 안 흔들린다).
+            // 조정후는 컬럼이 9개라 남는 폭이 생기는데, 그건 대분류 트랙(1fr)이 흡수해
+            // 중·소분류 긴 이름이 덜 잘린다. 당월/분기는 5컬럼이라 470px.
             // flex-none으로 카드가 자연 폭을 지키고, 남는 공간은 우측 panel이 흡수.
             const cardWidthClass = mode !== "ytd"
               ? "xl:flex-none xl:w-[470px]"
-              : planVariant === "plan_adj"
-                ? "xl:flex-none xl:w-[860px]"
-                : "xl:flex-none xl:w-[790px]";
+              : "xl:flex-none xl:w-[790px]";
             return (
           <div className="flex flex-col xl:flex-row gap-5 items-start mb-8">
             {/* 좌: 사업부 선택 카드 (모드에 따라 폭 자동 조정) */}

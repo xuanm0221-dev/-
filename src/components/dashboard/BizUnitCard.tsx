@@ -357,7 +357,10 @@ export function BizUnitCard({
   const gridStyle = {
     gridTemplateColumns: showAnnualColsTop
       ? (showPlanDelta
-          ? "minmax(0,140px) 62px 62px 66px 38px 62px 62px 54px 66px 66px 62px"
+          // 조정후: 남은월예산·판정 제외. 변동액을 12월에 몰아넣은 탓에 남은월예산이
+          // 부풀고, 판정(= 실적 − YTD계획)은 기존계획과 값이 완전히 같아 의미가 없다.
+          // 컬럼이 2개 줄어 생긴 여유는 금액 칸에 나눠 준다 (기존계획보다 넓게).
+          ? "minmax(0,154px) 76px 76px 78px 46px 76px 76px 60px 78px"
           : "minmax(0,140px) 62px 62px 66px 38px 62px 54px 66px 66px 62px")
       : "minmax(0,158px) 72px 72px 76px 40px",
   };
@@ -616,8 +619,10 @@ export function BizUnitCard({
                       {expectedPacePct != null && <span className="ml-0.5 text-slate-400 normal-case">({expectedPacePct}%)</span>}
                     </div>
                     <div className="text-center border-l border-slate-200 pl-1.5">{t("잔여예산", lang)}</div>
-                    <div className="text-center border-l border-slate-200 pl-1.5">{remainingLabel}</div>
-                    <div className="text-center">{t("판정", lang)}</div>
+                    {!showPlanDelta && (<>
+                      <div className="text-center border-l border-slate-200 pl-1.5">{remainingLabel}</div>
+                      <div className="text-center">{t("판정", lang)}</div>
+                    </>)}
                   </div>
                 ) : (
                   <div className="grid gap-1 text-[11px] text-slate-500 font-semibold uppercase tracking-wide mb-0.5 px-1.5 py-1 bg-slate-50 rounded whitespace-nowrap" style={gridStyle}>
@@ -659,12 +664,14 @@ export function BizUnitCard({
                           {totalUsagePct != null ? formatPercent(totalUsagePct, 0) : "-"}
                         </div>
                         <div className="text-right border-l border-gray-200 pl-1.5">{budgetLeft(totalAnnualPlan, totalCurr)}</div>
-                        <div className="text-right border-l border-gray-200 pl-1.5">{formatK(totalRemaining)}</div>
-                        <div className="text-center">
-                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                            {diff >= 0 ? "+" : ""}{formatK(diff)}
-                          </span>
-                        </div>
+                        {!showPlanDelta && (<>
+                          <div className="text-right border-l border-gray-200 pl-1.5">{formatK(totalRemaining)}</div>
+                          <div className="text-center">
+                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                              {diff >= 0 ? "+" : ""}{formatK(diff)}
+                            </span>
+                          </div>
+                        </>)}
                       </>
                     );
                   })()}
@@ -721,16 +728,18 @@ export function BizUnitCard({
                                 {detail.usagePct != null ? formatPercent(detail.usagePct, 0) : "-"}
                               </div>
                               <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">{budgetLeft(ap, currAmt)}</div>
-                              <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
-                                {has ? formatK(rem) : "-"}
-                              </div>
-                              <div className="text-center">
-                                {has ? (
-                                  <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                    {diff >= 0 ? "+" : ""}{formatK(diff)}
-                                  </span>
-                                ) : <span className="text-gray-400">-</span>}
-                              </div>
+                              {!showPlanDelta && (<>
+                                <div className="text-right text-gray-600 border-l border-gray-200 pl-1.5">
+                                  {has ? formatK(rem) : "-"}
+                                </div>
+                                <div className="text-center">
+                                  {has ? (
+                                    <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10.5px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                      {diff >= 0 ? "+" : ""}{formatK(diff)}
+                                    </span>
+                                  ) : <span className="text-gray-400">-</span>}
+                                </div>
+                              </>)}
                             </>
                           );
                         })()}
@@ -789,16 +798,18 @@ export function BizUnitCard({
                                           {c2.usagePct != null ? formatPercent(c2.usagePct, 0) : "-"}
                                         </div>
                                         <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">{budgetLeft(ap, c2.amount)}</div>
-                                        <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
-                                          {has ? formatK(rem) : "-"}
-                                        </div>
-                                        <div className="text-center">
-                                          {has ? (
-                                            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                              {diff >= 0 ? "+" : ""}{formatK(diff)}
-                                            </span>
-                                          ) : <span className="text-gray-400">-</span>}
-                                        </div>
+                                        {!showPlanDelta && (<>
+                                          <div className="text-right text-gray-600 border-l border-gray-100 pl-1.5">
+                                            {has ? formatK(rem) : "-"}
+                                          </div>
+                                          <div className="text-center">
+                                            {has ? (
+                                              <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                                {diff >= 0 ? "+" : ""}{formatK(diff)}
+                                              </span>
+                                            ) : <span className="text-gray-400">-</span>}
+                                          </div>
+                                        </>)}
                                       </>
                                     );
                                   })()}
@@ -869,16 +880,18 @@ export function BizUnitCard({
                                                 {c3.usagePct != null ? formatPercent(c3.usagePct, 0) : "-"}
                                               </div>
                                               <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">{budgetLeft(ap, c3.amount)}</div>
-                                              <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
-                                                {has ? formatK(rem) : "-"}
-                                              </div>
-                                              <div className="text-center">
-                                                {has ? (
-                                                  <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
-                                                    {diff >= 0 ? "+" : ""}{formatK(diff)}
-                                                  </span>
-                                                ) : <span className="text-gray-400">-</span>}
-                                              </div>
+                                              {!showPlanDelta && (<>
+                                                <div className="text-right text-gray-500 border-l border-gray-100 pl-1.5">
+                                                  {has ? formatK(rem) : "-"}
+                                                </div>
+                                                <div className="text-center">
+                                                  {has ? (
+                                                    <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold tabular-nums ${isOver ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"}`}>
+                                                      {diff >= 0 ? "+" : ""}{formatK(diff)}
+                                                    </span>
+                                                  ) : <span className="text-gray-400">-</span>}
+                                                </div>
+                                              </>)}
                                             </>
                                           );
                                         })()}

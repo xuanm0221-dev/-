@@ -21,6 +21,7 @@ import { formatK, formatPercent } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { usePlanVariant } from "@/contexts/PlanVariantContext";
 import { Dialog } from "@/components/ui/dialog";
+import { BudgetAdjustedView } from "./BudgetAdjustedView";
 import { t } from "@/lib/translations";
 import { tLabel } from "@/lib/accountLabels";
 
@@ -206,14 +207,15 @@ const APPROVED_ADDITIONS: Record<string, ApprovedAddition> = {
 export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
   const { lang } = useLanguage();
   const { planVariant, setPlanVariant } = usePlanVariant();
-  // 계획 소스 — 원계획(plan) / 중간점검 조정후(plan_adj). 조정후 데이터가 있을 때만 토글 노출.
-  const planType = resolvePlanType(year, planVariant);
   const hasAdjustedPlan = hasYearType(year, "plan_adj");
+  // 조정후 뷰는 분석 로직이 다르다 — 월별 배분이 없어 초과/감축 판정을 못 태운다.
+  // 아래 useMemo(초과·감축 판정)는 기존계획 전용이라 항상 "plan" 을 읽는다.
+  const isAdjusted = hasAdjustedPlan && planVariant === "plan_adj";
 
   const { overGroups, underGroups, onTrackGroups, expectedPace, totals, roas, overCount, underCount } = useMemo(() => {
     // 5개 소스: 연간 계획 · YTD 계획 · YTD 실적 · 전년 YTD 실적 · 전년 연간 실적(12월)
-    const planAnnualItems = getCategoryDetail(bizUnit, year, 12, "", "ytd", planType);
-    const planYtdItems = getCategoryDetail(bizUnit, year, month, "", "ytd", planType);
+    const planAnnualItems = getCategoryDetail(bizUnit, year, 12, "", "ytd", "plan");
+    const planYtdItems = getCategoryDetail(bizUnit, year, month, "", "ytd", "plan");
     const actualItems = getCategoryDetail(bizUnit, year, month, "", "ytd", "actual");
     const prevActualItems = getCategoryDetail(bizUnit, year - 1, month, "", "ytd", "actual");
     const prevAnnualActualItems = getCategoryDetail(bizUnit, year - 1, 12, "", "ytd", "actual");
@@ -505,7 +507,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       overCount: overItems.length,
       underCount: underItems.length,
     };
-  }, [bizUnit, year, month, planType, lang]);
+  }, [bizUnit, year, month, lang]);
 
   // 핵심 결론은 항상 인라인, 상세 분석(근거)은 모달로 띄운다
   const [analysisOpen, setAnalysisOpen] = useState(false);
@@ -515,47 +517,53 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       {/* 탭 스위처 + 우측 제목·기간 (한 줄, 외부 카드 없이 직접 노출) */}
       <div>
         <div className="flex items-center gap-3 flex-wrap mb-2">
-          {/* 계획 소스 — 기존계획 / 중간점검 조정후 (탭 스위처 좌측) */}
+          {/* 계획 소스 — 조정후 예산(확정) 먼저, 기존계획은 비교용 (탭 스위처 좌측) */}
           {hasAdjustedPlan && (
             <div className="inline-flex rounded-md border border-slate-300 overflow-hidden flex-shrink-0" role="group">
               <button
                 type="button"
-                onClick={() => setPlanVariant("plan")}
+                onClick={() => setPlanVariant("plan_adj")}
                 className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                  planVariant === "plan_adj" ? "bg-sky-500 text-white" : "bg-white text-slate-600 hover:bg-sky-50"
+                }`}
+              >
+                {t("조정후 예산", lang)}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlanVariant("plan")}
+                className={`px-2.5 py-1 text-[11px] font-semibold border-l border-slate-300 transition-colors ${
                   planVariant === "plan" ? "bg-sky-500 text-white" : "bg-white text-slate-600 hover:bg-sky-50"
                 }`}
               >
                 {t("기존계획", lang)}
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlanVariant("plan_adj")}
-                className={`px-2.5 py-1 text-[11px] font-semibold border-l border-slate-300 transition-colors ${
-                  planVariant === "plan_adj" ? "bg-sky-500 text-white" : "bg-white text-slate-600 hover:bg-sky-50"
-                }`}
-              >
-                {t("조정 후", lang)}
               </button>
             </div>
           )}
           {/* 제목 — 인라인으로 보여지는 내용이 무엇인지까지 제목에 담는다 (선택 대상이 아니므로 탭 아님) */}
           <div className="flex items-baseline gap-2 min-w-0">
             <h2 className="text-[16px] font-bold tracking-tight text-slate-900 truncate">
-              {t(bizUnit, lang)} · {t("예산 중간점검", lang)} ({t("핵심 결론 & 액션", lang)})
+              {t(bizUnit, lang)} · {t("예산 중간점검", lang)} (
+              {isAdjusted ? t("조정후 분석", lang) : t("핵심 결론 & 액션", lang)})
             </h2>
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
               {year}{t("년", lang)} {month}{t("월", lang)} YTD · {t("예상 진척률", lang)} <b className="text-slate-700">{expectedPace.toFixed(0)}%</b>
             </span>
           </div>
-          {/* 상세 분석 — 모달 여는 단일 버튼, 우측 정렬 */}
-          <button
-            type="button"
-            onClick={() => setAnalysisOpen(true)}
-            className="ml-auto flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-sky-50 hover:border-sky-400 hover:text-sky-700 transition-colors"
-          >
-            🔍 {t("상세 분석 (근거)", lang)}
-          </button>
+          {/* 상세 분석 — 기존계획 전용. 조정후는 판정 로직이 성립하지 않아 숨긴다. */}
+          {!isAdjusted && (
+            <button
+              type="button"
+              onClick={() => setAnalysisOpen(true)}
+              className="ml-auto flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-sky-50 hover:border-sky-400 hover:text-sky-700 transition-colors"
+            >
+              🔍 {t("상세 분석 (근거)", lang)}
+            </button>
+          )}
         </div>
+        {isAdjusted ? (
+          <BudgetAdjustedView bizUnit={bizUnit} year={year} month={month} />
+        ) : (<>
         {/* KPI 카드 4개 (탭 바로 아래, Executive Overview 위) — 순액증감 좌측 첫번째 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3 items-stretch">
           {/* 순액 증감 카드 (첫번째) — 컴팩트 버전 */}
@@ -970,8 +978,10 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
             </div>
           );
         })()}
+        </>)}
       </div>
 
+      {!isAdjusted && (
       <Dialog
         open={analysisOpen}
         onOpenChange={setAnalysisOpen}
@@ -1053,6 +1063,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
         </div>
         </div>
       </Dialog>
+      )}
     </div>
   );
 }
