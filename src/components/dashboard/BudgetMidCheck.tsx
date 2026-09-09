@@ -72,7 +72,7 @@ interface Lv1Group {
   yoyAmountSum: number;
   yoyPctSum: number | null;
   prevAnnualActualSum: number;
-  adjustedAnnualSum: number;      // 원계획 + 순 조정금액
+  adjustedAnnualSum: number;      // 원계획 + 순 증감액
   projAnnualYoyAmountSum: number;
   projAnnualYoyPctSum: number | null;
   projectedIfFollowPlanSum: number;
@@ -208,7 +208,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
   const { lang } = useLanguage();
   const { planVariant, setPlanVariant } = usePlanVariant();
   const hasAdjustedPlan = hasYearType(year, "plan_adj");
-  // 조정후 뷰는 분석 로직이 다르다 — 월별 배분이 없어 초과/감축 판정을 못 태운다.
+  // 사용예상 뷰는 분석 로직이 다르다 — 월별 배분이 없어 초과/감축 판정을 못 태운다.
   // 아래 useMemo(초과·감축 판정)는 기존계획 전용이라 항상 "plan" 을 읽는다.
   const isAdjusted = hasAdjustedPlan && planVariant === "plan_adj";
 
@@ -343,7 +343,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
         : isApprovedByActual
         ? t("이미 발생 완료 · 승인 완료", lang)
         : raw.conclusion;
-      // 조정후 연간 = 원 연간계획 + 승인/증액 (over) or − 감축 (under)
+      // 사용예상 연간 = 원 연간계획 + 승인/증액 (over) or − 감축 (under)
       let adjustedAnnual = planAnnual;
       if (hasApproval) adjustedAnnual = planAnnual + approvalOverride.totalAlloc26 * 1000;
       else if (isApprovedByActual) adjustedAnnual = planAnnual + Math.max(0, actual - planAnnual);
@@ -460,7 +460,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       reviewAmount: overItems
         .filter((i) => !APPROVED_ADDITIONS[`${i.bu}|${i.lv1}`] && !APPROVED_BY_ACTUAL_LV1.has(i.lv1))
         .reduce((s, i) => s + Math.max(0, i.projectedIfFollowPlan - i.planAnnual), 0),
-      // 총 증액 예상 = 위 세 개 합 (조정 후 총예산 계산용)
+      // 총 증액 예상 = 위 세 개 합 (실제 사용예상 총액 계산용)
       overAmount:
         approvalSum + approvalByActualSum +
         overItems
@@ -517,7 +517,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
       {/* 탭 스위처 + 우측 제목·기간 (한 줄, 외부 카드 없이 직접 노출) */}
       <div>
         <div className="flex items-center gap-3 flex-wrap mb-2">
-          {/* 계획 소스 — 조정후 예산(확정) 먼저, 기존계획은 비교용 (탭 스위처 좌측) */}
+          {/* 계획 소스 — 연간 실제 사용예상 먼저, 기존계획은 비교용 (탭 스위처 좌측) */}
           {hasAdjustedPlan && (
             <div className="inline-flex rounded-md border border-slate-300 overflow-hidden flex-shrink-0" role="group">
               <button
@@ -527,7 +527,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
                   planVariant === "plan_adj" ? "bg-sky-500 text-white" : "bg-white text-slate-600 hover:bg-sky-50"
                 }`}
               >
-                {t("조정후 예산", lang)}
+                {t("연간 실제 사용예상", lang)}
               </button>
               <button
                 type="button"
@@ -544,13 +544,13 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
           <div className="flex items-baseline gap-2 min-w-0">
             <h2 className="text-[16px] font-bold tracking-tight text-slate-900 truncate">
               {t(bizUnit, lang)} · {t("예산 중간점검", lang)} (
-              {isAdjusted ? t("조정후 분석", lang) : t("핵심 결론 & 액션", lang)})
+              {isAdjusted ? t("연간 실제 사용예상 분석", lang) : t("핵심 결론 & 액션", lang)})
             </h2>
             <span className="text-[11px] text-slate-500 whitespace-nowrap">
               {year}{t("년", lang)} {month}{t("월", lang)} YTD · {t("예상 진척률", lang)} <b className="text-slate-700">{expectedPace.toFixed(0)}%</b>
             </span>
           </div>
-          {/* 상세 분석 — 기존계획 전용. 조정후는 판정 로직이 성립하지 않아 숨긴다. */}
+          {/* 상세 분석 — 기존계획 전용. 사용예상은 판정 로직이 성립하지 않아 숨긴다. */}
           {!isAdjusted && (
             <button
               type="button"
@@ -611,7 +611,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
             emphasize
           />
           <SummaryBox
-            label={planVariant === "plan_adj" ? t("총 예산 (예산 조정후)", lang) : t("총 예산 (기존계획)", lang)}
+            label={planVariant === "plan_adj" ? t("총 예산 (연간 실제 사용예상)", lang) : t("총 예산 (기존계획)", lang)}
             value={formatK(totals.plan)}
             sub={`${t("실적", lang)} ${formatK(totals.actual)} · ${t("진척률", lang)} ${totals.plan > 0 ? formatPercent((totals.actual / totals.plan) * 100, 0) : "-"}`}
             tone={planVariant === "plan_adj" ? "emerald" : "slate"}
@@ -726,7 +726,7 @@ export function BudgetMidCheck({ bizUnit, year, month }: BudgetMidCheckProps) {
                 ? `📢 净节余 ${formatK(Math.abs(netExclApproved))} — 用作新投资/风险缓冲, 光告费·订货会按ROAS·ROI持续监控`
                 : `📢 按原计划均衡运行 — 关注可变费用月度动态, 保持现有控制水平`
             : overTone
-              ? `📢 변동비 우선 통제 ${formatK(buckets["변동"] ?? 0)} — 4Q 신규 지출 동결, 감축 여력 ${formatK(totals.underAmount)}로 상쇄 (조정 후 총예산 ${formatK(adjustedTotal)}, 전년비 ${yoyPct != null ? (yoyPct >= 100 ? "+" : "") + (yoyPct - 100).toFixed(1) + "%" : "-"})`
+              ? `📢 변동비 우선 통제 ${formatK(buckets["변동"] ?? 0)} — 4Q 신규 지출 동결, 감축 여력 ${formatK(totals.underAmount)}로 상쇄 (실제 사용예상 총액 ${formatK(adjustedTotal)}, 전년비 ${yoyPct != null ? (yoyPct >= 100 ? "+" : "") + (yoyPct - 100).toFixed(1) + "%" : "-"})`
               : netExclApproved < 0
                 ? `📢 순 여유 ${formatK(Math.abs(netExclApproved))} — 신규 투자·리스크 버퍼로 재배분, 광고비·수주회는 ROAS·ROI 지속 모니터링`
                 : `📢 원 계획대로 균형 진행 — 변동비 월별 모니터링, 현 통제 수준 유지`;
@@ -1105,7 +1105,7 @@ function SyncedBudgetSection({
   // 좌·우에 나타나는 모든 lv1 합집합 (한 쪽만 있어도 그 lv1은 보임)
   const overMap = new Map(overGroups.map((g) => [g.lv1, g]));
   const underMap = new Map(underGroups.map((g) => [g.lv1, g]));
-  // 대분류별 조정후 연간 · 전년 연간 합 (이 행에 실제 표시되는 over + under만; 정상 항목은 제외)
+  // 대분류별 사용예상 연간 · 전년 연간 합 (이 행에 실제 표시되는 over + under만; 정상 항목은 제외)
   // 정상 항목까지 포함하면 화면에 안 보이는 브랜드 광고비 등이 섞여 YoY가 왜곡됨
   const combinedByLv1 = (lv1: string) => {
     const o = overMap.get(lv1);
@@ -1138,11 +1138,11 @@ function SyncedBudgetSection({
     });
   };
 
-  // 좌·우 정렬 모드 (계정별=대분류 계층 / 금액순=평평한 리스트, 조정금액 큰 순)
+  // 좌·우 정렬 모드 (계정별=대분류 계층 / 금액순=평평한 리스트, 증감액 큰 순)
   const [overSort, setOverSort] = useState<"byCat" | "byAmt">("byCat");
   const [underSort, setUnderSort] = useState<"byCat" | "byAmt">("byCat");
 
-  // 금액순용 평평 리스트 (조정금액 큰 순)
+  // 금액순용 평평 리스트 (증감액 큰 순)
   const computeOverAdjust = (i: BudgetItem) => {
     const approval = APPROVED_ADDITIONS[`${i.bu}|${i.lv1}`];
     if (approval) return approval.totalAlloc26 * 1000;
@@ -1394,7 +1394,7 @@ function SideRender({ mode, groups, flatItems, tone, border, lang, expanded, onT
   onToggle: (lv1: string) => void;
 }) {
   if (mode === "byAmt") {
-    // 조정금액 큰 순 평평 리스트 (대분류 그룹 없음)
+    // 증감액 큰 순 평평 리스트 (대분류 그룹 없음)
     return (
       <div className={border === "right" ? "border-r-2 border-slate-400" : ""}>
         <ItemColumn items={flatItems} tone={tone} lang={lang} />
@@ -1436,7 +1436,7 @@ function SideRender({ mode, groups, flatItems, tone, border, lang, expanded, onT
   );
 }
 
-// 그리드 트랙: [소분류(1.2배) · 실적 · 진척률 · 연간계획 · 조정금액(+승인내역) · 조정후 연간(금액만) · 전년 연간 · YoY(금액,율)]
+// 그리드 트랙: [소분류(1.2배) · 실적 · 진척률 · 연간계획 · 증감액(+승인내역) · 사용예상 연간(금액만) · 전년 연간 · YoY(금액,율)]
 const GRID_TRACKS = "grid-cols-[minmax(70px,1.1fr)_54px_44px_54px_74px_72px_58px_66px]";
 
 // 종합 판정 셀 (byCat 모드에서 3번째 섹션으로 분리)
@@ -1640,7 +1640,7 @@ function ItemColumn({ items, tone, border, lang }: {
           : it.planAnnual - it.projectedIfFollowPlan;
         const showAdjust = (tone === "rose" && it.verdict === "over-clear") || (tone === "blue" && it.verdict === "under-cut");
         const adjust = showAdjust ? Math.max(0, rawAdjust) : 0;
-        // 실사용액 승인 항목의 조정금액 = actual - planAnnual (초과분)
+        // 실사용액 승인 항목의 증감액 = actual - planAnnual (초과분)
         const actualApprovalAmt = isApprovedByActual ? Math.max(0, it.actual - it.planAnnual) : 0;
         return (
           <div key={it.key} className={`grid ${GRID_TRACKS} gap-1 px-3 py-1 items-start border-t border-slate-100 hover:bg-slate-50/50`}>
@@ -1657,7 +1657,7 @@ function ItemColumn({ items, tone, border, lang }: {
             <div className="text-[11px] text-right text-slate-700 tabular-nums pt-0.5">{formatK(it.actual)}</div>
             <div className={`text-[11px] text-right font-semibold tabular-nums pt-0.5 ${ratioCls}`}>{formatPercent(it.annualPct, 0)}</div>
             <div className="text-[11px] text-right text-slate-500 tabular-nums pt-0.5">{formatK(it.planAnnual)}</div>
-            {/* 조정금액 셀 — 금액 위, 승인표/확정 배지 아래 */}
+            {/* 증감액 셀 — 금액 위, 승인표/확정 배지 아래 */}
             <div className="flex flex-col items-stretch">
               <div className={`text-[11px] text-right font-bold tabular-nums pt-0.5 ${ratioCls}`}>
                 {approval

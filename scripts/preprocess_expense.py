@@ -20,10 +20,12 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 # 분석 대상 사업부 (MLB, KIDS, DISCOVERY, 공통)
 TARGET_BIZ_UNITS = ["MLB", "KIDS", "DISCOVERY", "공통"]
 
-# 예산 중간점검 — "조정후 예산"(연간 확정치)으로 만드는 조정 계획
+# 예산 중간점검 — "연간 실제 사용예상"(연간 전망치)으로 만드는 계획
+# 예산을 고친 게 아니라, 지금 페이스로 연말까지 갔을 때 실제로 쓸 금액을 다시 취합한 값.
 PLAN_ADJ_FILE = "2026년비용_plan_중간점검.csv"
 PLAN_ADJ_YEAR = 2026
-PLAN_ADJ_COL = "조정후 예산"
+# 시트 컬럼명 후보 — 앞의 것부터 찾아 쓴다 (구 시트는 "조정후 예산" 헤더를 쓴다)
+PLAN_ADJ_COLS = ["연간 실제 사용예상", "조정후 예산"]
 PLAN_ADJ_TYPE = "plan_adj"
 
 
@@ -482,13 +484,13 @@ def _clean_amount(series: pd.Series) -> pd.Series:
 
 
 def append_plan_adj(expense_df: pd.DataFrame) -> pd.DataFrame:
-    """예산 중간점검의 '조정후 예산'(연간 확정치)으로 plan_adj 계획을 만들어 덧붙인다.
+    """예산 중간점검의 '연간 실제 사용예상'(연간 전망치)으로 plan_adj 계획을 만들어 덧붙인다.
 
     중간점검 CSV 에는 월 컬럼이 없고 연간 값만 있으므로 월 배분이 필요한데,
-    분석을 연간 기준으로만 하므로 변동액은 전부 12월에 몰아 넣는다.
+    분석을 연간 기준으로만 하므로 증감액은 전부 12월에 몰아 넣는다.
       - 1~11월 : 원계획(plan) 월별 금액 그대로
-      - 12월   : 조정후 예산 − 원계획 1~11월 합
-    이렇게 하면 연간 합계가 '조정후 예산' 과 정확히 일치한다.
+      - 12월   : 연간 실제 사용예상 − 원계획 1~11월 합
+    이렇게 하면 연간 합계가 '연간 실제 사용예상' 과 정확히 일치한다.
     원계획에 없는 신규 항목은 12월에만 금액이 잡힌 행으로 새로 만든다.
     """
     filepath = os.path.join(CSV_BASE_PATH, PLAN_ADJ_FILE)
@@ -497,8 +499,9 @@ def append_plan_adj(expense_df: pd.DataFrame) -> pd.DataFrame:
         return expense_df
 
     raw = pd.read_csv(filepath, encoding="utf-8-sig")
-    if PLAN_ADJ_COL not in raw.columns:
-        print(f"   - 경고: {PLAN_ADJ_FILE} 에 '{PLAN_ADJ_COL}' 컬럼이 없어 plan_adj 를 만들지 못했습니다.")
+    adj_col = next((c for c in PLAN_ADJ_COLS if c in raw.columns), None)
+    if adj_col is None:
+        print(f"   - 경고: {PLAN_ADJ_FILE} 에 {PLAN_ADJ_COLS} 중 어떤 컬럼도 없어 plan_adj 를 만들지 못했습니다.")
         return expense_df
 
     key_cols = ["사업부구분", "대분류", "중분류", "소분류"]
@@ -509,7 +512,7 @@ def append_plan_adj(expense_df: pd.DataFrame) -> pd.DataFrame:
         if c not in raw.columns:
             raw[c] = ""
         raw[c] = raw[c].fillna("").astype(str).str.strip()
-    raw["_after"] = _clean_amount(raw[PLAN_ADJ_COL])
+    raw["_after"] = _clean_amount(raw[adj_col])
 
     # 사업부구분이 비어 있는 꼬리행(검산·메모)은 제외
     raw = raw[raw["사업부구분"] != ""]
@@ -543,7 +546,7 @@ def append_plan_adj(expense_df: pd.DataFrame) -> pd.DataFrame:
     # 1~11월 합 (키 단위)
     sum_1_11 = base[base["month"] <= 11].groupby("_key")["amount"].sum()
 
-    # 12월 = 조정후 예산 − 1~11월 합. 같은 키가 여러 행이면 첫 행에 몰아넣고 나머지는 0.
+    # 12월 = 연간 실제 사용예상 − 1~11월 합. 같은 키가 여러 행이면 첫 행에 몰아넣고 나머지는 0.
     matched, unmatched = 0, []
     dec = base[base["month"] == 12]
     for key, grp in dec.groupby("_key", sort=False):
@@ -595,7 +598,7 @@ def append_plan_adj(expense_df: pd.DataFrame) -> pd.DataFrame:
     print(f"   - plan_adj 생성: 매칭 {matched}개 키, 신규 {len(new_rows)//12}개 키")
     if unmatched:
         print(f"     경고: 중간점검에 없는 원계획 키 {len(unmatched)}개는 원계획 값 유지 → {unmatched[:5]}")
-    print(f"     원계획 {plan_total:,.0f} → 조정후 {adj_total:,.0f} ({adj_total - plan_total:+,.0f})")
+    print(f"     원계획 {plan_total:,.0f} → 실제 사용예상 {adj_total:,.0f} ({adj_total - plan_total:+,.0f})")
     return out
 
 

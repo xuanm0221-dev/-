@@ -69,7 +69,7 @@ export interface ExpenseDetail {
   planYtd?: number;
   /** 진척률 (0~100+, 당년 실적 / 연간 계획 × 100) — YTD 모드에서만 표시 */
   usagePct?: number | null;
-  /** 기존계획(원 plan) 연간계획 — 조정후 뷰에서 증감 컬럼 산출용 */
+  /** 기존계획(원 plan) 연간계획 — 사용예상 뷰에서 증감 컬럼 산출용 */
   basePlan?: number;
 }
 
@@ -130,9 +130,9 @@ export function BizUnitCard({
 }: BizUnitCardProps) {
   const { lang } = useLanguage();
   const isCorporate = businessUnit === "법인";
-  // 계획 소스 — 원계획(plan) / 중간점검 조정후(plan_adj)
+  // 계획 소스 — 원계획(plan) / 중간점검 연간 실제 사용예상(plan_adj)
   const planType = resolvePlanType(year, planVariant);
-  // 조정후 뷰에서만 "기존계획 대비 증감" 컬럼을 연간계획 우측에 끼운다
+  // 사용예상 뷰에서만 "기존계획 대비 증감" 컬럼을 연간계획 우측에 끼운다
   const showPlanDelta = mode === "ytd" && planType === "plan_adj";
   const themeKey = isCommon ? "COMMON" : isCorporate ? "법인" : (businessUnit as keyof typeof THEME);
   const theme = THEME[themeKey] || THEME.COMMON;
@@ -358,14 +358,14 @@ export function BizUnitCard({
   const gridStyle = {
     gridTemplateColumns: showAnnualColsTop
       ? (showPlanDelta
-          // 조정후: 남은월예산·판정 제외. 변동액을 12월에 몰아넣은 탓에 남은월예산이
+          // 사용예상: 남은월예산·판정 제외. 변동액을 12월에 몰아넣은 탓에 남은월예산이
           // 부풀고, 판정(= 실적 − YTD계획)은 기존계획과 값이 완전히 같아 의미가 없다.
           // 컬럼이 2개 줄어 생긴 여유는 금액 칸에 나눠 준다 (기존계획보다 넓게).
           ? "minmax(0,154px) 76px 76px 78px 46px 76px 76px 60px 78px"
           : "minmax(0,140px) 62px 62px 66px 38px 62px 54px 66px 66px 62px")
       : "minmax(0,158px) 72px 72px 76px 40px",
   };
-  // 기존계획 대비 증감 셀 (조정후 뷰 전용) — 연한 버터색 배경으로 컬럼을 구분
+  // 기존계획 대비 증감 셀 (사용예상 뷰 전용) — 연한 버터색 배경으로 컬럼을 구분
   const PLAN_DELTA_BG = "bg-[#fdf6e3]";
   const planDeltaCell = (annualPlan: number, basePlan: number, size: "total" | "lv1" | "sub") => {
     const d = annualPlan - (basePlan || 0);

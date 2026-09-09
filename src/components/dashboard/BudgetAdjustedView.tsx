@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * 예산 조정후 분석 (BudgetAdjustedView)
+ * 연간 실제 사용예상 분석 (BudgetAdjustedView)
  *
- * 조정후 계획(plan_adj)은 중간점검 시트의 "조정후 예산" — 연간 금액만 있고
- * 월별 배분이 없다. 그래서 기존계획 뷰의 초과/감축 판정(월별 계획 대비 페이스)은
- * 여기서 성립하지 않는다. 무엇을 얼마나 조정했고 그래서 지금 어디까지 썼는지만 본다.
+ * 사용예상 계획(plan_adj)은 중간점검 시트의 "연간 실제 사용예상" — 예산을 고친 게
+ * 아니라 지금 페이스로 연말까지 갔을 때 실제로 얼마를 쓸지 다시 취합한 전망이다.
+ * 연간 금액만 있고 월별 배분이 없어, 기존계획 뷰의 초과/감축 판정(월별 계획 대비
+ * 페이스)은 여기서 성립하지 않는다. 기존계획 대비 얼마나 늘고 줄 전망인지와
+ * 지금 어디까지 썼는지만 본다.
  *
- * 항목별 "빠르다/느리다" 판정은 하지 않는다 — 조정후엔 월별 계획이 없고 실적도
+ * 항목별 "빠르다/느리다" 판정은 하지 않는다 — 사용예상엔 월별 계획이 없고 실적도
  * 항목마다 편중이 커서(예: 지급수수료는 4월 한 달에 42% 집중) 균등소비를 전제한
  * 판정이 근거를 갖지 못한다. 진척률은 숫자로만 보여주고 해석은 사람에게 맡긴다.
  */
@@ -49,7 +51,7 @@ interface Lv1Stat {
   delta: number;
   deltaPct: number | null;
   usageAfter: number | null;
-  children: Child[]; // 조정액이 0이 아닌 하위 항목만
+  children: Child[]; // 증감액이 0이 아닌 하위 항목만
 }
 
 export interface BudgetAdjustedViewProps {
@@ -104,7 +106,7 @@ export function BudgetAdjustedView({ bizUnit, year, month }: BudgetAdjustedViewP
       const a = adj.sub.get(k) ?? 0;
       const ac = act.sub.get(k) ?? 0;
       const d = a - b;
-      if (d === 0) continue; // 조정된 항목만 노출
+      if (d === 0) continue; // 증감이 있는 항목만 노출
       const arr = childrenByLv1.get(lv1) ?? [];
       arr.push({
         key: k, name,
@@ -177,7 +179,7 @@ export function BudgetAdjustedView({ bizUnit, year, month }: BudgetAdjustedViewP
       <div className={`rounded-lg border-2 ${toneCls.br} bg-gradient-to-br ${toneCls.bg} p-3`}>
         <div className="flex items-center gap-2 mb-2">
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded text-white ${toneCls.bd}`}>
-            {t("조정 결과", L)}
+            {t("사용예상 요약", L)}
           </span>
           <span className="text-[11px] text-slate-500">
             {year}{t("년", L)} {month}{t("월", L)} YTD
@@ -191,7 +193,7 @@ export function BudgetAdjustedView({ bizUnit, year, month }: BudgetAdjustedViewP
           </div>
           <div className="text-[16px] text-slate-400 leading-tight pb-0.5">→</div>
           <div>
-            <div className="text-[10px] text-slate-500">{t("조정후 예산", L)}</div>
+            <div className="text-[10px] text-slate-500">{t("연간 실제 사용예상", L)}</div>
             <div className={`text-[22px] font-black tabular-nums leading-tight ${toneCls.tx}`}>{formatK(s.tAdj)}</div>
           </div>
           <div className={`ml-auto rounded-md px-2.5 py-1 text-right ${s.delta >= 0 ? "bg-rose-100 text-rose-800" : "bg-blue-100 text-blue-800"}`}>
@@ -204,7 +206,7 @@ export function BudgetAdjustedView({ bizUnit, year, month }: BudgetAdjustedViewP
           </div>
         </div>
 
-        {/* 진척률 게이지 — 조정 전/후 위치와 예상 페이스 눈금 */}
+        {/* 진척률 게이지 — 기존계획/사용예상 기준 위치와 예상 페이스 눈금 */}
         <div>
           <div className="flex items-baseline justify-between gap-2 mb-1">
             <span className="text-[11px] font-semibold text-slate-600">
@@ -214,7 +216,7 @@ export function BudgetAdjustedView({ bizUnit, year, month }: BudgetAdjustedViewP
               </span>
             </span>
             <span className="text-[11px] tabular-nums text-slate-500">
-              {t("조정 전", L)} <b className="text-slate-600">{s.usageBefore != null ? formatPercent(s.usageBefore, 1) : "-"}</b>
+              {t("기존계획 기준", L)} <b className="text-slate-600">{s.usageBefore != null ? formatPercent(s.usageBefore, 1) : "-"}</b>
               <span className="mx-1 text-slate-300">→</span>
               <b className={`text-[14px] ${toneCls.tx}`}>{s.usageAfter != null ? formatPercent(s.usageAfter, 1) : "-"}</b>
             </span>
@@ -224,7 +226,7 @@ export function BudgetAdjustedView({ bizUnit, year, month }: BudgetAdjustedViewP
             <div
               className="absolute top-0 bottom-0 w-px bg-slate-900/25"
               style={{ left: `${clamp(s.usageBefore ?? 0)}%` }}
-              title={`${t("조정 전", L)} ${formatPercent(s.usageBefore ?? 0, 1)}`}
+              title={`${t("기존계획 기준", L)} ${formatPercent(s.usageBefore ?? 0, 1)}`}
             />
             <div className="absolute top-0 bottom-0 w-0.5 bg-slate-900" style={{ left: `${clamp(s.pace)}%` }} />
           </div>
@@ -327,8 +329,8 @@ function RankPanel({
         style={COLS}
       >
         <span>{t("대분류", lang)}</span>
-        <span className="text-right">{t("조정액", lang)}</span>
-        <span className="text-right">{t("조정률", lang)}</span>
+        <span className="text-right">{t("증감액", lang)}</span>
+        <span className="text-right">{t("증감률", lang)}</span>
         <span className="text-right">
           {t("진척률", lang)}
           <span className="ml-0.5 normal-case text-slate-300">({pace.toFixed(0)}%)</span>

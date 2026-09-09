@@ -4,9 +4,9 @@ export type BizUnit = "법인" | "MLB" | "KIDS" | "DISCOVERY" | "공통";
 let _data: AggregatedData | null = null;
 
 /** 집계 데이터 설정 (ExpenseDataProvider에서 API fetch 후 호출) */
-/** 데이터 상의 연도 타입. plan_adj = 예산 중간점검 "조정후 예산" 기준 계획 */
+/** 데이터 상의 연도 타입. plan_adj = 예산 중간점검 "연간 실제 사용예상" 기준 */
 export type YearType = 'actual' | 'plan' | 'plan_adj';
-/** 계획 소스 선택 — 원계획 | 중간점검 조정후 */
+/** 계획 소스 선택 — 원계획 | 중간점검 연간 실제 사용예상 */
 export type PlanVariant = 'plan' | 'plan_adj';
 
 export function setExpenseData(d: AggregatedData): void {
@@ -839,7 +839,7 @@ export function getAvailableYearOptions(): YearOption[] {
     const types = yearTypes[year.toString()] || ['actual'];
 
     for (const type of types) {
-      // plan_adj 는 연도 선택지가 아니라 계획 소스(원계획/조정후) 토글로만 쓴다
+      // plan_adj 는 연도 선택지가 아니라 계획 소스(원계획/사용예상) 토글로만 쓴다
       if (type === 'plan_adj') continue;
 
       const display = type === 'plan'

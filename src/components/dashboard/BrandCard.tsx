@@ -150,14 +150,14 @@ export function BrandCard({
     prevCategoryData.map((item) => [item.cost_lv1, item])
   );
 
-  // 계획 소스 — 원계획(plan) / 중간점검 조정후(plan_adj). 데이터가 없으면 원계획으로 폴백.
+  // 계획 소스 — 원계획(plan) / 중간점검 연간 실제 사용예상(plan_adj). 데이터가 없으면 원계획으로 폴백.
   const planType = resolvePlanType(year, planVariant);
   // 연간 계획 (YTD 뷰용) — 2026년 계획 × 12월 YTD 기준
   const annualPlanData = yearType === 'actual'
     ? getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", planType)
     : [];
   const annualPlanMap = new Map(annualPlanData.map((item) => [item.cost_lv1, item.amount]));
-  // 조정후 뷰일 때만 — 기존계획(원 plan) 연간계획. 증감 컬럼 산출용
+  // 사용예상 뷰일 때만 — 기존계획(원 plan) 연간계획. 증감 컬럼 산출용
   const basePlanMap = yearType === 'actual' && planType === 'plan_adj'
     ? new Map(getMonthlyAggregatedByCategory(bizUnit, year, 12, "ytd", "plan").map((item) => [item.cost_lv1, item.amount]))
     : new Map<string, number>();

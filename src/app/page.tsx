@@ -134,8 +134,8 @@ export default function HomePage() {
   // 예산 중간점검은 연간계획 대비 YTD 진척 분석이라 당월·분기에는 의미가 없다.
   // 그 모드로 넘어가면 탭을 비활성화하고, 열려 있었으면 월별 추이로 내린다.
   const budgetTabEnabled = mode === "ytd";
-  // 조정후 예산은 "예산 중간점검" 화면의 개념이다. AI 보고서·심층분석·월별 추이·
-  // 광고비 효율은 기존계획으로 봐야 하므로, 좌측 카드도 그 탭에서만 조정후를 쓴다.
+  // 연간 실제 사용예상은 "예산 중간점검" 화면의 개념이다. AI 보고서·심층분석·월별 추이·
+  // 광고비 효율은 기존계획으로 봐야 하므로, 좌측 카드도 그 탭에서만 사용예상을 쓴다.
   const cardPlanVariant = rightTab === "budget" ? planVariant : "plan";
   useEffect(() => {
     if (!budgetTabEnabled && rightTab === "budget") setRightTab("ai");
@@ -316,8 +316,8 @@ export default function HomePage() {
         {/* HTML 다운로드 대상: 사업부 카드 + 상세표 (드롭다운으로 사업부 전환) */}
         <div ref={isPlanYear ? homeExportRef : undefined}>
           {(() => {
-            // 카드 폭: YTD 는 기존계획/조정후 모두 790px 로 통일 (토글해도 레이아웃이 안 흔들린다).
-            // 조정후는 컬럼이 9개라 남는 폭이 생기는데, 그건 대분류 트랙(1fr)이 흡수해
+            // 카드 폭: YTD 는 기존계획/사용예상 모두 790px 로 통일 (토글해도 레이아웃이 안 흔들린다).
+            // 사용예상은 컬럼이 9개라 남는 폭이 생기는데, 그건 대분류 트랙(1fr)이 흡수해
             // 중·소분류 긴 이름이 덜 잘린다. 당월/분기는 5컬럼이라 470px.
             // flex-none으로 카드가 자연 폭을 지키고, 남는 공간은 우측 panel이 흡수.
             const cardWidthClass = mode !== "ytd"
