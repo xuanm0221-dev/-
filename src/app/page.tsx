@@ -100,8 +100,8 @@ export default function HomePage() {
   const [selectedBrandBizUnit, setSelectedBrandBizUnit] = useState<BizUnit>("법인");
   // 우측 5-탭 스위처 선택 상태
   type RightTab = "budget" | "detail" | "adEfficiency" | "ai" | "deep";
-  // 진입 시: 누적(YTD) · 최신월 · AI 보고서
-  const [rightTab, setRightTab] = useState<RightTab>("ai");
+  // 진입 시: 누적(YTD) · 최신월 · 예산 중간점검 (계획 소스는 연간 실제 사용예상 — PlanVariantContext 기본값)
+  const [rightTab, setRightTab] = useState<RightTab>("budget");
 
   const isPlanYear = yearOption.year === 2026 && yearOption.type === 'plan';
   const availableMonths = getAvailableMonths(yearOption.year, yearOption.type);
